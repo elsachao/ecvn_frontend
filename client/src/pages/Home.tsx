@@ -1,25 +1,38 @@
-import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
-import { Streamdown } from 'streamdown';
+import { RegistrationProvider, useRegistration } from '@/contexts/RegistrationContext';
+import Sidebar from '@/components/Sidebar';
+import Header from '@/components/Header';
+import Step1BasicInfo from '@/components/Step1BasicInfo';
+import Step2Contracts from '@/components/Step2Contracts';
+import Step3Storages from '@/components/Step3Storages';
+import ContractModal from '@/components/ContractModal';
+import StorageModal from '@/components/StorageModal';
 
-/**
- * All content in this page are only for example, replace with your own feature implementation
- * When building pages, remember your instructions in Frontend Best Practices, Design Guide and Common Pitfalls
- */
-export default function Home() {
-  // If theme is switchable in App.tsx, we can implement theme toggling like this:
-  // const { theme, toggleTheme } = useTheme();
+function MainContent() {
+  const { step } = useRegistration();
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <main>
-        {/* Example: lucide-react for icons */}
-        <Loader2 className="animate-spin" />
-        Example Page
-        {/* Example: Streamdown for markdown rendering */}
-        <Streamdown>Any **markdown** content</Streamdown>
-        <Button variant="default">Example Button</Button>
-      </main>
+    <div className="flex h-screen overflow-hidden bg-slate-100">
+      <Sidebar />
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <Header />
+        <main className="flex-1 overflow-y-auto p-6">
+          {step === 1 && <Step1BasicInfo />}
+          {step === 2 && <Step2Contracts />}
+          {step === 3 && <Step3Storages />}
+        </main>
+      </div>
+
+      {/* Modals */}
+      <ContractModal />
+      <StorageModal />
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <RegistrationProvider>
+      <MainContent />
+    </RegistrationProvider>
   );
 }
