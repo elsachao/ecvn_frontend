@@ -78,7 +78,7 @@ const navModules: ModuleItem[] = [
 ];
 
 export default function Sidebar() {
-  const { isSidebarOpen, currentView, setCurrentView } = useRegistration();
+  const { isSidebarOpen, currentView, setCurrentView, goToRegistrationOverview } = useRegistration();
   // 控制哪些模組是展開的
   const [openModules, setOpenModules] = useState<string[]>(['registration', 'dashboard']);
 
@@ -152,6 +152,10 @@ export default function Sidebar() {
                       href="#"
                       onClick={(e: { preventDefault: () => void }) => {
                         e.preventDefault();
+                        if (sub.view === 'registration') {
+                          goToRegistrationOverview();
+                          return;
+                        }
                         if (sub.view) setCurrentView(sub.view);
                       }}
                       className={`block px-3 py-2 text-sm rounded-md transition-colors sidebar-subitem ${

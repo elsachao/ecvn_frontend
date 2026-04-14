@@ -7,9 +7,10 @@ import Step3Storages from '@/components/Step3Storages';
 import ContractModal from '@/components/ContractModal';
 import StorageModal from '@/components/StorageModal';
 import DashboardAgentAggregation from '@/components/DashboardAgentAggregation';
+import RegistrationOverview from '@/components/RegistrationOverview';
 
 function MainContent() {
-  const { step, currentView } = useRegistration();
+  const { step, currentView, registrationScreen } = useRegistration();
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-100">
@@ -19,9 +20,14 @@ function MainContent() {
         <main className="flex-1 overflow-y-auto p-6">
           {currentView === 'registration' && (
             <>
-              {step === 1 && <Step1BasicInfo />}
-              {step === 2 && <Step2Contracts />}
-              {step === 3 && <Step3Storages />}
+              {registrationScreen === 'overview' && <RegistrationOverview />}
+              {registrationScreen === 'form' && (
+                <>
+                  {step === 1 && <Step1BasicInfo />}
+                  {step === 2 && <Step2Contracts />}
+                  {step === 3 && <Step3Storages />}
+                </>
+              )}
             </>
           )}
           {currentView === 'dashboard-agent-aggregation' && <DashboardAgentAggregation />}

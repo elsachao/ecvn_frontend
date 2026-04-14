@@ -6,6 +6,7 @@ interface RegistrationState {
   isSidebarOpen: boolean;
   step: number;
   currentView: 'registration' | 'dashboard-agent-aggregation';
+  registrationScreen: 'overview' | 'form';
   syncBusinessData: boolean;
 
   // Step 1
@@ -29,6 +30,9 @@ interface RegistrationActions {
   setIsSidebarOpen: (open: boolean) => void;
   setStep: (step: number) => void;
   setCurrentView: (view: 'registration' | 'dashboard-agent-aggregation') => void;
+  setRegistrationScreen: (screen: 'overview' | 'form') => void;
+  startNewRegistration: () => void;
+  goToRegistrationOverview: () => void;
   setSyncBusinessData: (sync: boolean) => void;
   setAppInfo: (info: Partial<AppInfo>) => void;
 
@@ -64,20 +68,23 @@ const createEmptyStorage = (): StorageDevice => ({
   elecNo: '', meterNo: '', power: '', capacity: '', chargeEff: '', dischargeEff: '',
 });
 
+const createInitialAppInfo = (): AppInfo => ({
+  appId: 'APP-' + Date.now().toString().slice(-8),
+  date: new Date().toISOString().split('T')[0],
+  taxId: '',
+  agentName: '',
+  type: '',
+  status: '書審通過',
+});
+
 export function RegistrationProvider({ children }: { children: ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [step, setStep] = useState(1);
   const [currentView, setCurrentView] = useState<'registration' | 'dashboard-agent-aggregation'>('registration');
+  const [registrationScreen, setRegistrationScreen] = useState<'overview' | 'form'>('overview');
   const [syncBusinessData, setSyncBusinessData] = useState(true);
 
-  const [appInfo, setAppInfoState] = useState<AppInfo>({
-    appId: 'APP-' + Date.now().toString().slice(-8),
-    date: new Date().toISOString().split('T')[0],
-    taxId: '',
-    agentName: '',
-    type: '',
-    status: '書審通過',
-  });
+  const [appInfo, setAppInfoState] = useState<AppInfo>(createInitialAppInfo());
 
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [isContractModalOpen, setIsContractModalOpen] = useState(false);
@@ -195,11 +202,27 @@ export function RegistrationProvider({ children }: { children: ReactNode }) {
     setIsStorageModalOpen(false);
   }, [tempStorage, editStorageIndex]);
 
+  const startNewRegistration = useCallback(() => {
+    setCurrentView('registration');
+    setRegistrationScreen('form');
+    setStep(1);
+    setAppInfoState(createInitialAppInfo());
+    setContracts([]);
+    setStorages([]);
+    setTempContractState(createEmptyContract());
+    setTempStorageState(createEmptyStorage());
+  }, []);
+
+  const goToRegistrationOverview = useCallback(() => {
+    setCurrentView('registration');
+    setRegistrationScreen('overview');
+  }, []);
+
   const value: RegistrationState & RegistrationActions = {
-    isSidebarOpen, step, currentView, syncBusinessData,
+    isSidebarOpen, step, currentView, registrationScreen, syncBusinessData,
     appInfo, contracts, isContractModalOpen, isVerifying, editContractIndex, tempContract,
     storages, isStorageModalOpen, editStorageIndex, tempStorage,
-    setIsSidebarOpen, setStep, setCurrentView, setSyncBusinessData, setAppInfo,
+    setIsSidebarOpen, setStep, setCurrentView, setRegistrationScreen, startNewRegistration, goToRegistrationOverview, setSyncBusinessData, setAppInfo,
     openContractModal, editContract, deleteContract, closeContractModal,
     setTempContract, setTempContractDbData, setIsVerifying,
     saveAndNextContract, saveAndCloseContract,
