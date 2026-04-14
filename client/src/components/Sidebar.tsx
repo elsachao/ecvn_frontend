@@ -127,13 +127,16 @@ export default function Sidebar() {
                   )}
                 </div>
                 {isSidebarOpen && (
-                  <i className={`fas fa-chevron-down text-xs transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+                  <i className={`fas fa-chevron-down text-xs transition-transform duration-700 ${isOpen ? 'rotate-180' : ''}`} />
                 )}
               </button>
 
-              {/* 子項目選單 (僅在展開且 Sidebar 開啟時顯示) */}
-              {isSidebarOpen && (
-                <div className={`ml-8 space-y-1 border-l border-slate-700 pl-2 sidebar-submenu ${isOpen ? 'submenu-open' : 'submenu-closed'}`}>
+              {/* 子項目選單（保留 DOM，讓展開與收起都能平滑轉場） */}
+              <div
+                className={`ml-8 space-y-1 border-l border-slate-700 pl-2 sidebar-submenu ${
+                  isSidebarOpen && isOpen ? 'submenu-open' : 'submenu-closed'
+                }`}
+              >
                   {module.subItems.map((sub, subIndex) => (
                     <a
                       key={sub.label}
@@ -149,8 +152,7 @@ export default function Sidebar() {
                       {sub.label}
                     </a>
                   ))}
-                </div>
-              )}
+              </div>
             </div>
           );
         })}
