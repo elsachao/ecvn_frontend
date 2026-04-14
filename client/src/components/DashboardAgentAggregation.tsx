@@ -229,6 +229,11 @@ export default function DashboardAgentAggregation() {
       setHoveredAssetId(null);
       setFocusedAssetId(null);
       setResolvedPositions({});
+      markersRef.current.forEach(({ marker }) => {
+        marker.remove();
+      });
+      markersRef.current.clear();
+      mapRef.current = null;
     }
   }, [selectedAgent]);
 
@@ -265,7 +270,8 @@ export default function DashboardAgentAggregation() {
   useEffect(() => {
     const map = mapRef.current;
     const L = window.L;
-    if (!map || !selectedAgent || !L) return;
+    const markerPane = map && typeof (map as any).getPane === 'function' ? (map as any).getPane('markerPane') : null;
+    if (!map || !selectedAgent || !L || !markerPane) return;
 
     markersRef.current.forEach(({ marker }) => {
       marker.remove();
@@ -283,10 +289,15 @@ export default function DashboardAgentAggregation() {
         iconSize: [52, 52],
         iconAnchor: [26, 26],
       });
-      const marker = L.marker([position.lat, position.lng], {
-        icon,
-        title: asset.name,
-      }).addTo(map);
+      let marker: any;
+      try {
+        marker = L.marker([position.lat, position.lng], {
+          icon,
+          title: asset.name,
+        }).addTo(map);
+      } catch {
+        return;
+      }
 
       marker.on('mouseover', () => setHoveredAssetId(asset.id));
       marker.on('mouseout', () => setHoveredAssetId((prev) => (prev === asset.id ? null : prev)));
