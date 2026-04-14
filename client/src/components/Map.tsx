@@ -11,6 +11,7 @@ export type LeafletMapLike = {
   remove: () => void;
   panTo: (latlng: unknown) => void;
   fitBounds: (bounds: unknown, options?: unknown) => void;
+  whenReady?: (fn: () => void) => void;
 };
 
 declare global {
@@ -83,20 +84,23 @@ export function MapView({
         throw new Error("Leaflet 物件初始化失敗");
       }
 
-      map.current = L.map(mapContainer.current, {
+      const createdMap = L.map(mapContainer.current, {
         zoomControl: true,
       }).setView([initialCenter.lat, initialCenter.lng], initialZoom);
+      map.current = createdMap;
 
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-      }).addTo(map.current);
+      }).addTo(createdMap);
 
-      setMapError(null);
-      const initializedMap = map.current;
-      if (onMapReady && initializedMap) {
-        onMapReady(initializedMap);
-      }
+      createdMap.whenReady(() => {
+        if (map.current !== createdMap) return;
+        setMapError(null);
+        if (onMapReady) {
+          onMapReady(createdMap);
+        }
+      });
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "地圖初始化失敗，請確認網路設定。";

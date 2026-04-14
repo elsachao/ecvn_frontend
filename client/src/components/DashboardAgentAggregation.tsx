@@ -270,8 +270,13 @@ export default function DashboardAgentAggregation() {
   useEffect(() => {
     const map = mapRef.current;
     const L = window.L;
-    const markerPane = map && typeof (map as any).getPane === 'function' ? (map as any).getPane('markerPane') : null;
-    if (!map || !selectedAgent || !L || !markerPane) return;
+    if (!map || !selectedAgent || !L) return;
+    const mapAny = map as any;
+    if (!mapAny._container || !mapAny._panes) return;
+    if (!mapAny.getPane('markerPane') && typeof mapAny.createPane === 'function') {
+      mapAny.createPane('markerPane');
+    }
+    if (!mapAny.getPane('markerPane')) return;
 
     markersRef.current.forEach(({ marker }) => {
       marker.remove();
@@ -281,6 +286,7 @@ export default function DashboardAgentAggregation() {
     const bounds = L.latLngBounds([]);
 
     selectedAgentAssets.forEach((asset) => {
+      if (!mapAny._container || !mapAny._panes?.markerPane) return;
       const position = resolvedPositions[asset.id] ?? asset.fallbackPosition;
       const markerContent = createMarkerContent(asset);
       const icon = L.divIcon({
