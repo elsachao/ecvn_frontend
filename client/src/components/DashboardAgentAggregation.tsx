@@ -1,4 +1,5 @@
-import { MapView } from '@/components/Map';
+import { MapView, type LatLngLiteral } from '@/components/Map';
+import L, { type DivIcon, type Map as LeafletMap, type Marker as LeafletMarker } from 'leaflet';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 interface AssetItem {
@@ -8,7 +9,7 @@ interface AssetItem {
   address: string;
   capacityKw: number;
   category: 'generation' | 'load' | 'storage';
-  fallbackPosition: google.maps.LatLngLiteral;
+  fallbackPosition: LatLngLiteral;
 }
 
 interface Agent {
@@ -92,10 +93,38 @@ const agents: Agent[] = [
 ];
 
 type MarkerRecord = {
-  marker: google.maps.marker.AdvancedMarkerElement;
-  element: HTMLDivElement;
+  marker: LeafletMarker;
+  icon: DivIcon;
   asset: AssetItem;
 };
+
+type GeocodeResult = {
+  lat: string;
+  lon: string;
+};
+
+async function geocodeAddress(address: string): Promise<LatLngLiteral | null> {
+  const query = new URLSearchParams({
+    q: address,
+    format: 'json',
+    limit: '1',
+  });
+  const response = await fetch(`https://nominatim.openstreetmap.org/search?${query.toString()}`, {
+    headers: {
+      Accept: 'application/json',
+    },
+  });
+  if (!response.ok) return null;
+
+  const data = (await response.json()) as GeocodeResult[];
+  const first = data[0];
+  if (!first) return null;
+
+  return {
+    lat: Number(first.lat),
+    lng: Number(first.lon),
+  };
+}
 
 function getAssetMeta(category: AssetItem['category']) {
   if (category === 'generation') {
@@ -176,10 +205,10 @@ export default function DashboardAgentAggregation() {
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [hoveredAssetId, setHoveredAssetId] = useState<string | null>(null);
   const [focusedAssetId, setFocusedAssetId] = useState<string | null>(null);
-  const [resolvedPositions, setResolvedPositions] = useState<Record<string, google.maps.LatLngLiteral>>({});
-  const mapRef = useRef<google.maps.Map | null>(null);
+  const [resolvedPositions, setResolvedPositions] = useState<Record<string, LatLngLiteral>>({});
+  const mapRef = useRef<LeafletMap | null>(null);
   const markersRef = useRef<Map<string, MarkerRecord>>(new Map());
-  const geocodeCacheRef = useRef<Record<string, google.maps.LatLngLiteral>>({});
+  const geocodeCacheRef = useRef<Record<string, LatLngLiteral>>({});
   const maxTotal = useMemo(
     () => Math.max(...agents.map((agent) => agent.genCap + agent.loadCap + agent.storageCap)),
     []
@@ -199,10 +228,9 @@ export default function DashboardAgentAggregation() {
   }, [selectedAgent]);
 
   useEffect(() => {
-    if (!selectedAgent || !mapRef.current || !window.google?.maps) return;
+    if (!selectedAgent || !mapRef.current) return;
 
     let cancelled = false;
-    const geocoder = new window.google.maps.Geocoder();
 
     const resolveAll = async () => {
       const entries = await Promise.all(
@@ -211,18 +239,10 @@ export default function DashboardAgentAggregation() {
             return [asset.id, geocodeCacheRef.current[asset.id]] as const;
           }
 
-          try {
-            const result = await geocoder.geocode({ address: asset.address });
-            const first = result.results?.[0];
-            const location = first
-              ? { lat: first.geometry.location.lat(), lng: first.geometry.location.lng() }
-              : asset.fallbackPosition;
-            geocodeCacheRef.current[asset.id] = location;
-            return [asset.id, location] as const;
-          } catch {
-            geocodeCacheRef.current[asset.id] = asset.fallbackPosition;
-            return [asset.id, asset.fallbackPosition] as const;
-          }
+          const resolved = await geocodeAddress(asset.address);
+          const location = resolved ?? asset.fallbackPosition;
+          geocodeCacheRef.current[asset.id] = location;
+          return [asset.id, location] as const;
         })
       );
 
@@ -239,47 +259,55 @@ export default function DashboardAgentAggregation() {
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !selectedAgent || !window.google?.maps?.marker) return;
+    if (!map || !selectedAgent) return;
 
     markersRef.current.forEach(({ marker }) => {
-      marker.map = null;
+      marker.remove();
     });
     markersRef.current.clear();
 
-    const bounds = new window.google.maps.LatLngBounds();
+    const bounds = L.latLngBounds([]);
 
     selectedAgentAssets.forEach((asset) => {
       const position = resolvedPositions[asset.id] ?? asset.fallbackPosition;
-      const element = createMarkerContent(asset);
-      const marker = new window.google.maps.marker.AdvancedMarkerElement({
-        map,
-        position,
-        title: asset.name,
-        content: element,
+      const markerContent = createMarkerContent(asset);
+      const icon = L.divIcon({
+        html: markerContent.outerHTML,
+        className: '',
+        iconSize: [52, 52],
+        iconAnchor: [26, 26],
       });
+      const marker = L.marker([position.lat, position.lng], {
+        icon,
+        title: asset.name,
+      }).addTo(map);
 
-      element.addEventListener('mouseenter', () => setHoveredAssetId(asset.id));
-      element.addEventListener('mouseleave', () => setHoveredAssetId((prev) => (prev === asset.id ? null : prev)));
-      element.addEventListener('click', () => setFocusedAssetId(asset.id));
+      marker.on('mouseover', () => setHoveredAssetId(asset.id));
+      marker.on('mouseout', () => setHoveredAssetId((prev) => (prev === asset.id ? null : prev)));
+      marker.on('click', () => setFocusedAssetId(asset.id));
 
-      markersRef.current.set(asset.id, { marker, element, asset });
-      bounds.extend(position);
+      markersRef.current.set(asset.id, { marker, icon, asset });
+      bounds.extend([position.lat, position.lng]);
     });
 
-    if (!bounds.isEmpty()) {
-      map.fitBounds(bounds, 80);
+    if (selectedAgentAssets.length > 0 && bounds.isValid()) {
+      map.fitBounds(bounds, { padding: [80, 80] });
     }
   }, [selectedAgent, selectedAgentAssets, resolvedPositions]);
 
   useEffect(() => {
-    markersRef.current.forEach(({ element, asset, marker }) => {
+    markersRef.current.forEach(({ asset, marker, icon }) => {
       const isActive = highlightedAssetId === asset.id;
       const isFocused = focusedAssetId === asset.id;
-      element.classList.toggle('is-active', isActive);
-      element.classList.toggle('is-focused', isFocused);
 
-      if (isActive && marker.position && mapRef.current) {
-        mapRef.current.panTo(marker.position as google.maps.LatLng | google.maps.LatLngLiteral);
+      const markerHtml = createMarkerContent(asset);
+      if (isActive) markerHtml.classList.add('is-active');
+      if (isFocused) markerHtml.classList.add('is-focused');
+      icon.options.html = markerHtml.outerHTML;
+      marker.setIcon(icon);
+
+      if (isActive && mapRef.current) {
+        mapRef.current.panTo(marker.getLatLng());
       }
     });
   }, [highlightedAssetId, focusedAssetId]);
