@@ -212,6 +212,8 @@ export default function DashboardAgentAggregation() {
   const [focusedAssetId, setFocusedAssetId] = useState<string | null>(null);
   const [resolvedPositions, setResolvedPositions] = useState<Record<string, LatLngLiteral>>({});
   const mapRef = useRef<LeafletMapLike | null>(null);
+  /** 地圖 onMapReady 為非同步；僅寫入 ref 不會觸發重繪，需配合此 tick 讓標記 effect 重新執行 */
+  const [mapReadyTick, setMapReadyTick] = useState(0);
   const markersRef = useRef<Map<string, MarkerRecord>>(new Map());
   const geocodeCacheRef = useRef<Record<string, LatLngLiteral>>({});
   const maxTotal = useMemo(
@@ -234,11 +236,12 @@ export default function DashboardAgentAggregation() {
       });
       markersRef.current.clear();
       mapRef.current = null;
+      setMapReadyTick(0);
     }
   }, [selectedAgent]);
 
   useEffect(() => {
-    if (!selectedAgent || !mapRef.current) return;
+    if (!selectedAgent) return;
 
     let cancelled = false;
 
@@ -316,7 +319,7 @@ export default function DashboardAgentAggregation() {
     if (selectedAgentAssets.length > 0 && bounds.isValid()) {
       map.fitBounds(bounds, { padding: [80, 80] });
     }
-  }, [selectedAgent, selectedAgentAssets, resolvedPositions]);
+  }, [selectedAgent, selectedAgentAssets, resolvedPositions, mapReadyTick]);
 
   useEffect(() => {
     markersRef.current.forEach(({ asset, marker, icon }) => {
@@ -438,6 +441,7 @@ export default function DashboardAgentAggregation() {
               initialZoom={8}
               onMapReady={(map) => {
                 mapRef.current = map;
+                setMapReadyTick((t) => t + 1);
               }}
             />
           </div>
