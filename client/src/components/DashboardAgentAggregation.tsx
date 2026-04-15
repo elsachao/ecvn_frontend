@@ -1,6 +1,22 @@
 import { MapView, type LatLngLiteral, type LeafletMapLike } from '@/components/Map';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import L from 'leaflet';
 import { useEffect, useMemo, useRef, useState } from 'react';
+
+type AgentSearchField = 'name' | 'taxId' | 'registrationType';
+
+function matchesAgentKeyword(haystack: string, needle: string) {
+  const n = needle.trim();
+  if (!n) return true;
+  return haystack.toLowerCase().includes(n.toLowerCase());
+}
 
 interface AssetItem {
   id: string;
@@ -16,6 +32,8 @@ interface Agent {
   id: number;
   name: string;
   taxId: string;
+  /** 與註冊申請總覽一致之註冊類型，供列表搜尋 */
+  registrationType: string;
   genCap: number;
   loadCap: number;
   storageCap: number;
@@ -29,7 +47,7 @@ interface Agent {
 
 const agents: Agent[] = [
   {
-    id: 1, name: '台電綠能聚合商', taxId: '87654321', genCap: 2500, loadCap: 1500, storageCap: 1000, genMeters: 2, loadMeters: 1, bessCount: 1,
+    id: 1, name: '台電綠能聚合商', taxId: '87654321', registrationType: '註冊登記合格交易者', genCap: 2500, loadCap: 1500, storageCap: 1000, genMeters: 2, loadMeters: 1, bessCount: 1,
     genList: [
       { id: 'gen-1', name: '南科一期光電', no: '01-1234-56', address: '台南市新市區南科三路17號', capacityKw: 1400, category: 'generation', fallbackPosition: { lat: 23.098, lng: 120.293 } },
       { id: 'gen-2', name: '嘉義義竹光電', no: '01-5678-90', address: '嘉義縣義竹鄉義竹村88號', capacityKw: 1100, category: 'generation', fallbackPosition: { lat: 23.347, lng: 120.242 } },
@@ -42,7 +60,7 @@ const agents: Agent[] = [
     ],
   },
   {
-    id: 2, name: '永續綠能科技', taxId: '12345678', genCap: 4200, loadCap: 2000, storageCap: 2000, genMeters: 5, loadMeters: 1, bessCount: 2,
+    id: 2, name: '永續綠能科技', taxId: '12345678', registrationType: '資訊變更', genCap: 4200, loadCap: 2000, storageCap: 2000, genMeters: 5, loadMeters: 1, bessCount: 2,
     genList: [
       { id: 'gen-3', name: '雲林光電群', no: '03-1111-22', address: '雲林縣麥寮鄉雲林路一段16號', capacityKw: 2400, category: 'generation', fallbackPosition: { lat: 23.789, lng: 120.257 } },
       { id: 'gen-4', name: '彰濱日照場', no: '03-2222-33', address: '彰化縣線西鄉彰濱工業區12號', capacityKw: 1800, category: 'generation', fallbackPosition: { lat: 24.127, lng: 120.448 } },
@@ -56,7 +74,7 @@ const agents: Agent[] = [
     ],
   },
   {
-    id: 3, name: '城市太陽能管理', taxId: '22334455', genCap: 800, loadCap: 800, storageCap: 0, genMeters: 1, loadMeters: 1, bessCount: 0,
+    id: 3, name: '城市太陽能管理', taxId: '22334455', registrationType: '註冊登記合格交易者', genCap: 800, loadCap: 800, storageCap: 0, genMeters: 1, loadMeters: 1, bessCount: 0,
     genList: [
       { id: 'gen-5', name: '台北公有屋頂', no: '01-3333-44', address: '台北市信義區市府路1號', capacityKw: 800, category: 'generation', fallbackPosition: { lat: 25.037, lng: 121.563 } },
     ],
@@ -66,7 +84,7 @@ const agents: Agent[] = [
     storageList: [],
   },
   {
-    id: 4, name: '全球碳中和顧問', taxId: '99887766', genCap: 1500, loadCap: 1200, storageCap: 500, genMeters: 3, loadMeters: 1, bessCount: 1,
+    id: 4, name: '全球碳中和顧問', taxId: '99887766', registrationType: '註冊登記合格交易者', genCap: 1500, loadCap: 1200, storageCap: 500, genMeters: 3, loadMeters: 1, bessCount: 1,
     genList: [
       { id: 'gen-6', name: '高雄一廠光電', no: '07-7777-88', address: '高雄市岡山區本工東一路8號', capacityKw: 1500, category: 'generation', fallbackPosition: { lat: 22.797, lng: 120.296 } },
     ],
@@ -78,7 +96,7 @@ const agents: Agent[] = [
     ],
   },
   {
-    id: 5, name: '智慧電網儲能系統', taxId: '55443322', genCap: 3000, loadCap: 2500, storageCap: 3000, genMeters: 1, loadMeters: 1, bessCount: 5,
+    id: 5, name: '智慧電網儲能系統', taxId: '55443322', registrationType: '資訊變更', genCap: 3000, loadCap: 2500, storageCap: 3000, genMeters: 1, loadMeters: 1, bessCount: 5,
     genList: [
       { id: 'gen-7', name: '大容量離岸風', no: '09-1234-99', address: '苗栗縣通霄鎮海濱路89號', capacityKw: 3000, category: 'generation', fallbackPosition: { lat: 24.495, lng: 120.676 } },
     ],
@@ -219,10 +237,27 @@ export default function DashboardAgentAggregation() {
   const [leafletMap, setLeafletMap] = useState<LeafletMapLike | null>(null);
   const markersRef = useRef<Map<string, MarkerRecord>>(new Map());
   const geocodeCacheRef = useRef<Record<string, LatLngLiteral>>({});
-  const maxTotal = useMemo(
-    () => Math.max(...agents.map((agent) => agent.genCap + agent.loadCap + agent.storageCap)),
-    []
-  );
+  const [agentSearchField, setAgentSearchField] = useState<AgentSearchField>('name');
+  const [agentSearchKeyword, setAgentSearchKeyword] = useState('');
+
+  const filteredAgents = useMemo(() => {
+    const q = agentSearchKeyword.trim();
+    if (!q) return agents;
+    return agents.filter((agent) => {
+      const value =
+        agentSearchField === 'name'
+          ? agent.name
+          : agentSearchField === 'taxId'
+            ? agent.taxId
+            : agent.registrationType;
+      return matchesAgentKeyword(value, q);
+    });
+  }, [agentSearchField, agentSearchKeyword]);
+
+  const maxTotal = useMemo(() => {
+    if (filteredAgents.length === 0) return 0;
+    return Math.max(...filteredAgents.map((agent) => agent.genCap + agent.loadCap + agent.storageCap));
+  }, [filteredAgents]);
   const selectedAgentAssets = useMemo(
     () => (selectedAgent ? [...selectedAgent.genList, ...selectedAgent.loadList, ...selectedAgent.storageList] : []),
     [selectedAgent]
@@ -461,9 +496,45 @@ export default function DashboardAgentAggregation() {
         <p className="text-base text-slate-500 mt-2">點選左側廠商可查看資產細項，右側為聚合規模對比。</p>
       </div>
 
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:flex-wrap mb-8">
+        <div className="space-y-1.5 min-w-[200px]">
+          <label className="text-sm font-bold text-slate-600">搜尋欄位</label>
+          <Select
+            value={agentSearchField}
+            onValueChange={(v) => setAgentSearchField(v as AgentSearchField)}
+          >
+            <SelectTrigger className="w-full sm:w-[220px] border-slate-200 bg-white">
+              <SelectValue placeholder="選擇欄位" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="name">申請名稱</SelectItem>
+              <SelectItem value="taxId">統一編號</SelectItem>
+              <SelectItem value="registrationType">註冊類型</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5 flex-1 min-w-[200px]">
+          <label className="text-sm font-bold text-slate-600">關鍵字</label>
+          <div className="relative">
+            <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm" />
+            <Input
+              value={agentSearchKeyword}
+              onChange={(e) => setAgentSearchKeyword(e.target.value)}
+              placeholder="輸入關鍵字篩選代理人…"
+              className="pl-9 border-slate-200 bg-white"
+            />
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-12 gap-8">
         <div className="col-span-12 lg:col-span-7 space-y-6">
-          {agents.map((agent) => (
+          {filteredAgents.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/80 p-10 text-center text-slate-500">
+              沒有符合條件的代理人，請調整關鍵字或搜尋欄位。
+            </div>
+          ) : (
+            filteredAgents.map((agent) => (
             <button
               key={agent.id}
               onClick={() => setSelectedAgent(agent)}
@@ -471,10 +542,14 @@ export default function DashboardAgentAggregation() {
             >
               <div className="w-2 bg-slate-800" />
               <div className="flex-1 p-6">
-                <div className="flex justify-between items-center mb-4">
+                <div className="flex justify-between items-center mb-2">
                   <h3 className="text-3xl font-bold text-slate-800">{agent.name}</h3>
                   <span className="text-xl text-slate-500 font-mono">統編: {agent.taxId}</span>
                 </div>
+                <p className="text-sm text-slate-500 mb-4">
+                  <span className="font-bold text-slate-600">註冊類型：</span>
+                  {agent.registrationType}
+                </p>
 
                 <div className="grid grid-cols-3 gap-4 mb-2">
                   <div className="bg-yellow-50 p-3 rounded">
@@ -507,7 +582,8 @@ export default function DashboardAgentAggregation() {
                 <i className="fas fa-chevron-right" />
               </div>
             </button>
-          ))}
+            )))
+          )}
         </div>
 
         <div className="col-span-12 lg:col-span-5">
@@ -517,8 +593,9 @@ export default function DashboardAgentAggregation() {
               各代理人聚合規模對比 (kW)
             </h3>
             <div className="space-y-4">
-              {agents.map((agent) => {
+              {filteredAgents.map((agent) => {
                 const total = agent.genCap + agent.loadCap + agent.storageCap;
+                const barPct = maxTotal > 0 ? (total / maxTotal) * 100 : 0;
                 return (
                   <div key={`${agent.id}-bar`}>
                     <div className="flex justify-between text-xs mb-1 text-slate-600">
@@ -528,7 +605,7 @@ export default function DashboardAgentAggregation() {
                     <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
                       <div
                         className="h-full bg-blue-500 rounded-full transition-all duration-700"
-                        style={{ width: `${(total / maxTotal) * 100}%` }}
+                        style={{ width: `${barPct}%` }}
                       />
                     </div>
                   </div>
