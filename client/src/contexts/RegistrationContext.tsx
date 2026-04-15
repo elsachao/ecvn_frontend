@@ -28,6 +28,7 @@ interface RegistrationState {
 
   // Dashboard 2.1 / Overview 1.1 共用代理人資料
   agents: AggregationAgent[];
+  applications: AppInfo[];
 }
 
 interface RegistrationActions {
@@ -65,6 +66,11 @@ interface RegistrationActions {
   setAgents: (agents: AggregationAgent[]) => void;
   updateAgent: (id: number, patch: Partial<AggregationAgent>) => void;
   deleteAgent: (id: number) => void;
+
+  // Applications actions
+  upsertApplication: (app: AppInfo) => void;
+  deleteApplication: (appId: string) => void;
+  loadApplicationToForm: (appId: string) => void;
 }
 
 const RegistrationContext = createContext<(RegistrationState & RegistrationActions) | null>(null);
@@ -86,8 +92,20 @@ const createInitialAppInfo = (): AppInfo => ({
   taxId: '',
   agentName: '',
   type: '',
-  status: '書審通過',
+  status: '審核中',
 });
+
+const createInitialApplications = (): AppInfo[] => {
+  const today = new Date().toISOString().split('T')[0];
+  return INITIAL_AGENTS.map((agent) => ({
+    appId: `APP-AGENT-${agent.id}`,
+    date: today,
+    taxId: agent.taxId,
+    agentName: agent.name,
+    type: agent.registrationType,
+    status: '已完成',
+  }));
+};
 
 export function RegistrationProvider({ children }: { children: ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -110,6 +128,49 @@ export function RegistrationProvider({ children }: { children: ReactNode }) {
   const [tempStorage, setTempStorageState] = useState<StorageDevice>(createEmptyStorage());
 
   const [agents, setAgentsState] = useState<AggregationAgent[]>(() => JSON.parse(JSON.stringify(INITIAL_AGENTS)));
+  const [applications, setApplications] = useState<AppInfo[]>(createInitialApplications);
+
+  const syncAgentsFromApplications = useCallback((apps: AppInfo[]) => {
+    setAgentsState((prev) => {
+      let next = [...prev];
+      const completed = apps.filter((a) => a.status === '已完成');
+
+      completed.forEach((app) => {
+        const existingIndex = next.findIndex(
+          (a) => a.taxId === app.taxId || a.name === app.agentName
+        );
+        if (existingIndex >= 0) {
+          next[existingIndex] = {
+            ...next[existingIndex],
+            name: app.agentName,
+            taxId: app.taxId,
+            registrationType: app.type || next[existingIndex].registrationType,
+          };
+          return;
+        }
+
+        const newId =
+          next.length > 0 ? Math.max(...next.map((a) => a.id)) + 1 : 1;
+        next.push({
+          id: newId,
+          name: app.agentName || '未命名申請',
+          taxId: app.taxId || '',
+          registrationType: app.type || '註冊登記合格交易者',
+          genCap: 0,
+          loadCap: 0,
+          storageCap: 0,
+          genMeters: 0,
+          loadMeters: 0,
+          bessCount: 0,
+          genList: [],
+          loadList: [],
+          storageList: [],
+        });
+      });
+
+      return next;
+    });
+  }, []);
 
   const setAppInfo = useCallback((info: Partial<AppInfo>) => {
     setAppInfoState((prev) => ({ ...prev, ...info }));
@@ -131,6 +192,41 @@ export function RegistrationProvider({ children }: { children: ReactNode }) {
     if (!window.confirm('此操作無法復原，是否仍要刪除？')) return;
     setAgentsState((prev) => prev.filter((a) => a.id !== id));
   }, []);
+
+  const upsertApplication = useCallback((app: AppInfo) => {
+    const normalized: AppInfo = {
+      ...app,
+      status: app.status || '審核中',
+      date: app.date || new Date().toISOString().split('T')[0],
+      appId: app.appId || `APP-${Date.now().toString().slice(-8)}`,
+    };
+    setApplications((prev) => {
+      const idx = prev.findIndex((a) => a.appId === normalized.appId);
+      const next = [...prev];
+      if (idx >= 0) next[idx] = normalized;
+      else next.unshift(normalized);
+      syncAgentsFromApplications(next);
+      return next;
+    });
+  }, [syncAgentsFromApplications]);
+
+  const deleteApplication = useCallback((appId: string) => {
+    if (!window.confirm('確定要刪除這筆申請單嗎？')) return;
+    setApplications((prev) => {
+      const next = prev.filter((a) => a.appId !== appId);
+      syncAgentsFromApplications(next);
+      return next;
+    });
+  }, [syncAgentsFromApplications]);
+
+  const loadApplicationToForm = useCallback((appId: string) => {
+    const found = applications.find((a) => a.appId === appId);
+    if (!found) return;
+    setCurrentView('registration');
+    setRegistrationScreen('form');
+    setStep(1);
+    setAppInfoState({ ...found });
+  }, [applications]);
 
   const setContractSyncBusinessData = useCallback((index: number, sync: boolean) => {
     setContracts((prev) => {
@@ -268,7 +364,7 @@ export function RegistrationProvider({ children }: { children: ReactNode }) {
     isSidebarOpen, step, currentView, registrationScreen, syncBusinessData,
     appInfo, contracts, isContractModalOpen, isVerifying, editContractIndex, tempContract,
     storages, isStorageModalOpen, editStorageIndex, tempStorage,
-    agents,
+    agents, applications,
     setIsSidebarOpen, setStep, setCurrentView, setRegistrationScreen, startNewRegistration, goToRegistrationOverview, setSyncBusinessData, setContractSyncBusinessData, setAllContractsSyncBusinessData, setAppInfo,
     openContractModal, editContract, deleteContract, closeContractModal,
     setTempContract, setTempContractDbData, setIsVerifying,
@@ -276,6 +372,7 @@ export function RegistrationProvider({ children }: { children: ReactNode }) {
     openStorageModal, editStorage, deleteStorage, closeStorageModal,
     setTempStorage: setTempStorageField, saveStorage,
     setAgents, updateAgent, deleteAgent,
+    upsertApplication, deleteApplication, loadApplicationToForm,
   };
 
   return (

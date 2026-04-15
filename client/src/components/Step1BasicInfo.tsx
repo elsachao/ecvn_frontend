@@ -91,9 +91,12 @@ export default function Step1BasicInfo() {
             </label>
             <select
               value={appInfo.status}
-              className="w-full bg-slate-100 border border-slate-200 rounded-lg px-4 py-2.5 text-blue-700 font-bold outline-none pointer-events-none"
+              onChange={(e) => setAppInfo({ status: e.target.value })}
+              className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2.5 text-blue-700 font-bold focus:border-blue-500 outline-none"
             >
+              <option value="審核中">審核中</option>
               <option value="書審通過">書審通過</option>
+              <option value="已完成">已完成</option>
             </select>
           </div>
         </div>

@@ -6,12 +6,15 @@ export default function Step3Storages() {
     storages, setStep,
     openStorageModal, editStorage, deleteStorage,
     appInfo, contracts,
+    upsertApplication, goToRegistrationOverview,
   } = useRegistration();
 
   const handleComplete = () => {
+    upsertApplication(appInfo);
     toast.success('代理人註冊與資產綁定已全數完成，資料已寫入系統！', {
       duration: 5000,
     });
+    goToRegistrationOverview();
   };
 
   return (
