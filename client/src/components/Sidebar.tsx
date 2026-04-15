@@ -33,17 +33,19 @@ const navModules: ModuleItem[] = [
     label: '2. 儀錶板',
     subItems: [
       { id: 'dash-2-1', label: '2.1 代理人資源聚合管理', view: 'dashboard-agent-aggregation' },
+      { id: 'dash-2-2', label: '2.2 通訊資料' },
+      { id: 'dash-2-3', label: '2.3 即時發電量監控' },
+      { id: 'dash-2-4', label: '2.4 MVRN 分配' },
     ],
   },
   {
     id: 'bidding',
     icon: 'fas fa-gavel',
-    label: '3. 競價作業',
+    label: '3. 申報計畫',
     subItems: [
       { id: 'bid-3-1', label: '3.1 負載預測' },
-      { id: 'bid-3-2', label: '3.2 報價' },
-      { id: 'bid-3-3', label: '3.3 COP' },
-      { id: 'bid-3-4', label: '3.4 公告' },
+      { id: 'bid-3-2', label: '3.2 再生能源預測' },
+      { id: 'bid-3-3', label: '3.3 COP 申報與公告' },
     ],
   },
   {
@@ -72,7 +74,6 @@ const navModules: ModuleItem[] = [
       { id: 'oth-6-1', label: '6.1 通知' },
       { id: 'oth-6-2', label: '6.2 系統管理' },
       { id: 'oth-6-3', label: '6.3 網站管理' },
-      { id: 'oth-6-4', label: '6.4 通訊資料' },
     ],
   },
 ];
