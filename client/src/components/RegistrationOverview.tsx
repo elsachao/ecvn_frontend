@@ -7,6 +7,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useRegistration } from '@/contexts/RegistrationContext';
+import type { AppInfo } from '@/types/index';
 import { useMemo, useState } from 'react';
 
 type RegistrationSearchField = 'name' | 'taxId' | 'type';
@@ -34,7 +35,7 @@ export default function RegistrationOverview() {
   const [draft, setDraft] = useState<{ agentName: string; taxId: string; type: string; status: string; date: string } | null>(null);
 
   const rows = useMemo<RegistrationItem[]>(() => {
-    return applications.map((a) => ({
+    return applications.map((a: AppInfo) => ({
       id: a.appId,
       name: a.agentName,
       taxId: a.taxId,
@@ -47,7 +48,7 @@ export default function RegistrationOverview() {
   const filteredRows = useMemo(() => {
     const q = (searchKeyword ?? '').trim();
     if (!q) return rows;
-    return rows.filter((row) => {
+    return rows.filter((row: RegistrationItem) => {
       const value =
         searchField === 'name' ? row.name : searchField === 'taxId' ? row.taxId : row.type;
       return matchesKeyword(value, q);
@@ -76,7 +77,7 @@ export default function RegistrationOverview() {
             <label className="text-sm font-bold text-slate-600">搜尋欄位</label>
             <Select
               value={searchField}
-              onValueChange={(v) => setSearchField(v as RegistrationSearchField)}
+              onValueChange={(v: string) => setSearchField(v as RegistrationSearchField)}
             >
               <SelectTrigger className="w-full sm:w-[220px] border-slate-200 bg-white">
                 <SelectValue placeholder="選擇欄位" />
@@ -94,7 +95,7 @@ export default function RegistrationOverview() {
               <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm" />
               <Input
                 value={searchKeyword ?? ''}
-                onChange={(e) => setSearchKeyword(e.target.value)}
+                onChange={(e: any) => setSearchKeyword(e.target.value)}
                 placeholder="輸入關鍵字篩選列表…"
                 className="pl-9 border-slate-200 bg-white"
               />
@@ -108,31 +109,60 @@ export default function RegistrationOverview() {
               沒有符合條件的申請，請調整關鍵字或搜尋欄位。
             </div>
           ) : (
-            filteredRows.map((row, index) => (
+            filteredRows.map((row: RegistrationItem, index: number) => (
               <div
                 key={`${row.id}-${index}`}
                 className="border border-slate-200 bg-slate-50/60 hover:bg-white hover:border-blue-300 transition-all rounded-xl p-4 md:p-5"
               >
                 <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
                   <h4 className="text-lg font-bold text-slate-800">{row.name}</h4>
-                  <span className="text-xs font-mono text-slate-500">{row.id}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono text-slate-500">{row.id}</span>
+                    {editingAppId !== row.id && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingAppId(row.id);
+                            setDraft({
+                              agentName: row.name,
+                              taxId: row.taxId,
+                              type: row.type,
+                              status: row.status,
+                              date: row.updatedAt,
+                            });
+                          }}
+                          className="px-2.5 py-1.5 rounded-lg text-blue-700 hover:bg-blue-50 font-bold text-xs transition"
+                        >
+                          編輯
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deleteApplication(row.id)}
+                          className="px-2.5 py-1.5 rounded-lg text-red-600 hover:bg-red-50 font-bold text-xs transition"
+                        >
+                          刪除
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 {editingAppId === row.id && draft ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-sm mb-4">
-                    <Input value={draft.agentName} onChange={(e) => setDraft((p) => (p ? { ...p, agentName: e.target.value } : p))} />
-                    <Input value={draft.taxId} onChange={(e) => setDraft((p) => (p ? { ...p, taxId: e.target.value } : p))} />
-                    <Input value={draft.type} onChange={(e) => setDraft((p) => (p ? { ...p, type: e.target.value } : p))} />
+                    <Input value={draft.agentName} onChange={(e: any) => setDraft((p: any) => (p ? { ...p, agentName: e.target.value } : p))} />
+                    <Input value={draft.taxId} onChange={(e: any) => setDraft((p: any) => (p ? { ...p, taxId: e.target.value } : p))} />
+                    <Input value={draft.type} onChange={(e: any) => setDraft((p: any) => (p ? { ...p, type: e.target.value } : p))} />
                     <select
                       value={draft.status}
-                      onChange={(e) => setDraft((p) => (p ? { ...p, status: e.target.value } : p))}
+                      onChange={(e: any) => setDraft((p: any) => (p ? { ...p, status: e.target.value } : p))}
                       className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-700 font-bold outline-none"
                     >
                       <option value="審核中">審核中</option>
                       <option value="書審通過">書審通過</option>
                       <option value="已完成">已完成</option>
                     </select>
-                    <Input type="date" value={draft.date} onChange={(e) => setDraft((p) => (p ? { ...p, date: e.target.value } : p))} />
+                    <Input type="date" value={draft.date} onChange={(e: any) => setDraft((p: any) => (p ? { ...p, date: e.target.value } : p))} />
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-sm">
@@ -179,33 +209,10 @@ export default function RegistrationOverview() {
                     <>
                       <button
                         type="button"
-                        onClick={() => {
-                          setEditingAppId(row.id);
-                          setDraft({
-                            agentName: row.name,
-                            taxId: row.taxId,
-                            type: row.type,
-                            status: row.status,
-                            date: row.updatedAt,
-                          });
-                        }}
-                        className="px-3 py-2 rounded-lg text-blue-700 hover:bg-blue-50 font-bold text-sm transition"
-                      >
-                        編輯
-                      </button>
-                      <button
-                        type="button"
                         onClick={() => loadApplicationToForm(row.id)}
                         className="px-3 py-2 rounded-lg text-slate-700 hover:bg-slate-100 font-bold text-sm transition"
                       >
                         進入流程
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => deleteApplication(row.id)}
-                        className="px-3 py-2 rounded-lg text-red-600 hover:bg-red-50 font-bold text-sm transition"
-                      >
-                        刪除
                       </button>
                     </>
                   )}
