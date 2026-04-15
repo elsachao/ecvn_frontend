@@ -6,6 +6,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { AGENTS, AGENT_OVERVIEW_ROW_META } from '@/data/agentAggregation';
 import { useRegistration } from '@/contexts/RegistrationContext';
 import { useMemo, useState } from 'react';
 
@@ -20,15 +21,10 @@ interface RegistrationItem {
   updatedAt: string;
 }
 
-const mockHistory: RegistrationItem[] = [
-  { id: 'APP-24092101', name: '台電綠能聚合商', taxId: '87654321', type: '註冊登記合格交易者', status: '已完成', updatedAt: '2026-04-03' },
-  { id: 'APP-24092102', name: '永續綠能科技', taxId: '12345678', type: '資訊變更', status: '審核中', updatedAt: '2026-04-07' },
-];
-
-function matchesKeyword(haystack: string, needle: string) {
-  const n = needle.trim();
+function matchesKeyword(haystack: string | undefined | null, needle: string | undefined | null) {
+  const n = (needle ?? '').trim();
   if (!n) return true;
-  return haystack.toLowerCase().includes(n.toLowerCase());
+  return (haystack ?? '').toLowerCase().includes(n.toLowerCase());
 }
 
 export default function RegistrationOverview() {
@@ -36,23 +32,34 @@ export default function RegistrationOverview() {
   const [searchField, setSearchField] = useState<RegistrationSearchField>('name');
   const [searchKeyword, setSearchKeyword] = useState('');
 
-  const rows = useMemo<RegistrationItem[]>(
-    () => [
+  const rows = useMemo<RegistrationItem[]>(() => {
+    const today = new Date().toISOString().split('T')[0];
+    const fromSharedAgents: RegistrationItem[] = AGENTS.map((agent) => {
+      const meta = AGENT_OVERVIEW_ROW_META[agent.id] ?? { status: '已完成', updatedAt: today };
+      return {
+        id: `APP-AGENT-${agent.id}`,
+        name: agent.name,
+        taxId: agent.taxId,
+        type: agent.registrationType,
+        status: meta.status,
+        updatedAt: meta.updatedAt,
+      };
+    });
+    return [
       {
-        id: appInfo.appId,
+        id: appInfo.appId ?? `APP-${today.replace(/-/g, '')}`,
         name: appInfo.agentName || '（尚未填寫）',
         taxId: appInfo.taxId || '（尚未填寫）',
         type: appInfo.type || '註冊登記合格交易者',
         status: appInfo.status || '草稿',
-        updatedAt: appInfo.date,
+        updatedAt: appInfo.date ?? today,
       },
-      ...mockHistory,
-    ],
-    [appInfo]
-  );
+      ...fromSharedAgents,
+    ];
+  }, [appInfo]);
 
   const filteredRows = useMemo(() => {
-    const q = searchKeyword.trim();
+    const q = (searchKeyword ?? '').trim();
     if (!q) return rows;
     return rows.filter((row) => {
       const value =
@@ -100,8 +107,8 @@ export default function RegistrationOverview() {
             <div className="relative">
               <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm" />
               <Input
-                value={searchKeyword}
-                onChange={(e) => setSearchKeyword(e.targetValue)}
+                value={searchKeyword ?? ''}
+                onChange={(e) => setSearchKeyword(e.target.value)}
                 placeholder="輸入關鍵字篩選列表…"
                 className="pl-9 border-slate-200 bg-white"
               />
