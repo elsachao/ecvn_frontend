@@ -1,11 +1,9 @@
 import { useRegistration } from '@/contexts/RegistrationContext';
-import type { AppInfo } from '@/types/index';
 
 export default function Step1BasicInfo() {
-  const { appInfo, setAppInfo, setStep, applications, loadApplicationToForm } = useRegistration();
+  const { appInfo, setAppInfo, setStep } = useRegistration();
 
   const isStep1Valid = appInfo.taxId.length >= 8 && appInfo.type !== '' && appInfo.agentName !== '';
-  const appIdOptions = Array.from(new Set([appInfo.appId, ...applications.map((a: AppInfo) => a.appId)]));
 
   return (
     <div className="animate-fadeIn space-y-6">
@@ -21,15 +19,13 @@ export default function Step1BasicInfo() {
             <label className="block text-sm font-bold text-slate-700 mb-2">
               申請單編號 <span className="text-red-500">*</span>
             </label>
-            <select
+            <input
+              type="text"
               value={appInfo.appId}
-              onChange={(e: any) => loadApplicationToForm(e.target.value)}
+              onChange={(e: any) => setAppInfo({ appId: e.target.value })}
+              placeholder="請輸入申請單編號"
               className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2.5 text-slate-700 font-mono focus:border-blue-500 outline-none"
-            >
-              {appIdOptions.map((id) => (
-                <option key={id} value={id}>{id}</option>
-              ))}
-            </select>
+            />
           </div>
 
           {/* 申請日期 */}
