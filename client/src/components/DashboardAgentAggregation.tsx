@@ -106,6 +106,18 @@ function AssetCard({
   onClick: () => void;
 }) {
   const meta = getAssetMeta(asset.category);
+  const generationBadge =
+    asset.category === 'generation'
+      ? asset.renewableType === 'PV'
+        ? {
+            text: `PV${asset.renewableCode ? ` (${asset.renewableCode})` : ''}`,
+            className: 'bg-emerald-100 text-emerald-700',
+          }
+        : {
+            text: `WIND${asset.renewableCode ? ` (${asset.renewableCode})` : ''}`,
+            className: 'bg-sky-100 text-sky-700',
+          }
+      : null;
 
   return (
     <button
@@ -126,6 +138,11 @@ function AssetCard({
           <p className="text-lg font-bold text-slate-800">{asset.name}</p>
           <p className="text-sm text-slate-500 mt-1">{asset.no}</p>
         </div>
+        {generationBadge && (
+          <span className={`inline-flex items-center px-2 py-1 rounded text-[11px] font-black ${generationBadge.className}`}>
+            {generationBadge.text}
+          </span>
+        )}
         <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold ${meta.className}`}>
           <i className={meta.icon} />
           {meta.shortLabel}
@@ -133,6 +150,21 @@ function AssetCard({
       </div>
       <div className="mt-4 space-y-2 text-sm">
         <p className="text-slate-600"><span className="font-bold text-slate-700">容量：</span>{asset.capacityKw} kW</p>
+        {asset.meterNo ? (
+          <p className="text-slate-600"><span className="font-bold text-slate-700">表號：</span><span className="font-mono">{asset.meterNo}</span></p>
+        ) : null}
+        {asset.transferRatio !== undefined ? (
+          <p className="text-slate-600"><span className="font-bold text-slate-700">轉供比例：</span>{asset.transferRatio}%</p>
+        ) : null}
+        {asset.voltageLevel ? (
+          <p className="text-slate-600"><span className="font-bold text-slate-700">電壓層級：</span>{asset.voltageLevel}</p>
+        ) : null}
+        {asset.energyKwh !== undefined ? (
+          <p className="text-slate-600"><span className="font-bold text-slate-700">總電量：</span>{asset.energyKwh} kWh</p>
+        ) : null}
+        {asset.roundTripEfficiency !== undefined ? (
+          <p className="text-slate-600"><span className="font-bold text-slate-700">充放電效率：</span>{asset.roundTripEfficiency}%</p>
+        ) : null}
         <p className="text-slate-600"><span className="font-bold text-slate-700">地址：</span>{asset.address}</p>
         <p className="text-slate-600"><span className="font-bold text-slate-700">資產類型：</span>{meta.title}</p>
       </div>
@@ -153,6 +185,7 @@ export default function DashboardAgentAggregation() {
   const geocodeCacheRef = useRef<Record<string, LatLngLiteral>>({});
   const [agentSearchField, setAgentSearchField] = useState<AgentSearchField>('name');
   const [agentSearchKeyword, setAgentSearchKeyword] = useState('');
+  const [generationFilter, setGenerationFilter] = useState<'all' | 'PV' | 'WIND'>('all');
 
   const filteredAgents = useMemo(() => {
     const q = (agentSearchKeyword ?? '').trim();
@@ -176,6 +209,21 @@ export default function DashboardAgentAggregation() {
     () => (selectedAgent ? [...selectedAgent.genList, ...selectedAgent.loadList, ...selectedAgent.storageList] : []),
     [selectedAgent]
   );
+  const generationAssets = selectedAgent?.genList ?? [];
+  const pvAssets = useMemo(
+    () => generationAssets.filter((a) => a.renewableType === 'PV'),
+    [generationAssets]
+  );
+  const windAssets = useMemo(
+    () => generationAssets.filter((a) => a.renewableType === 'WIND'),
+    [generationAssets]
+  );
+  const filteredGenerationAssets = useMemo(() => {
+    if (generationFilter === 'all') return generationAssets;
+    return generationAssets.filter((a) => a.renewableType === generationFilter);
+  }, [generationAssets, generationFilter]);
+  const pvCapTotal = pvAssets.reduce((sum, a) => sum + a.capacityKw, 0);
+  const windCapTotal = windAssets.reduce((sum, a) => sum + a.capacityKw, 0);
   const highlightedAssetId = hoveredAssetId ?? focusedAssetId;
 
   useEffect(() => {
@@ -189,6 +237,7 @@ export default function DashboardAgentAggregation() {
       markersRef.current.clear();
       mapRef.current = null;
       setLeafletMap(null);
+      setGenerationFilter('all');
     }
   }, [selectedAgent]);
 
@@ -310,11 +359,40 @@ export default function DashboardAgentAggregation() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="space-y-4">
-            <div className="flex items-center space-x-2 text-yellow-600 font-bold border-b-2 border-yellow-400 pb-2">
-              <i className="fas fa-sun" />
-              <span>Account A 發電資產</span>
+            <div className="flex flex-wrap items-center justify-between gap-3 text-yellow-700 font-bold border-b-2 border-yellow-400 pb-2">
+              <div className="flex items-center space-x-2">
+                <i className="fas fa-sun" />
+                <span>Account A 發電資產（PV / WIND）</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setGenerationFilter('all')}
+                  className={`px-2.5 py-1 rounded text-xs font-black transition ${generationFilter === 'all' ? 'bg-yellow-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                >
+                  全部
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGenerationFilter('PV')}
+                  className={`px-2.5 py-1 rounded text-xs font-black transition ${generationFilter === 'PV' ? 'bg-emerald-600 text-white' : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'}`}
+                >
+                  PV
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGenerationFilter('WIND')}
+                  className={`px-2.5 py-1 rounded text-xs font-black transition ${generationFilter === 'WIND' ? 'bg-sky-600 text-white' : 'bg-sky-100 text-sky-700 hover:bg-sky-200'}`}
+                >
+                  WIND
+                </button>
+              </div>
             </div>
-            {selectedAgent.genList.map((gen) => (
+            <div className="text-xs text-slate-600 flex flex-wrap gap-3 bg-yellow-50/70 border border-yellow-100 rounded-lg p-2.5">
+              <span>PV：<b className="text-emerald-700">{pvAssets.length}</b> 筆 / <b className="text-emerald-700">{pvCapTotal}</b> kW</span>
+              <span>WIND：<b className="text-sky-700">{windAssets.length}</b> 筆 / <b className="text-sky-700">{windCapTotal}</b> kW</span>
+            </div>
+            {filteredGenerationAssets.map((gen) => (
               <AssetCard
                 key={gen.id}
                 asset={gen}
@@ -324,6 +402,11 @@ export default function DashboardAgentAggregation() {
                 onClick={() => setFocusedAssetId(gen.id)}
               />
             ))}
+            {filteredGenerationAssets.length === 0 && (
+              <div className="p-4 bg-slate-50 rounded-lg border border-dashed text-slate-400">
+                目前沒有符合條件的發電資產
+              </div>
+            )}
           </div>
           <div className="space-y-4">
             <div className="flex items-center space-x-2 text-red-600 font-bold border-b-2 border-red-400 pb-2">
@@ -472,6 +555,9 @@ export default function DashboardAgentAggregation() {
                     <p className="text-base text-slate-600 mt-2">
                       <i className="fas fa-fingerprint mr-1" />
                       發電電號: <b className="text-slate-800">{agent.genMeters}</b>
+                    </p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      PV / WIND：<b className="text-emerald-700">{agent.genList.filter((g) => g.renewableType === 'PV').length}</b> / <b className="text-sky-700">{agent.genList.filter((g) => g.renewableType === 'WIND').length}</b>
                     </p>
                   </div>
                   <div className="bg-red-50 p-3 rounded">
