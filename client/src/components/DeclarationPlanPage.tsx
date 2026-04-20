@@ -223,6 +223,9 @@ export default function DeclarationPlanPage() {
   const [modifyTargetIndex, setModifyTargetIndex] = useState(0);
   const [refCode, setRefCode] = useState('REF-EDIT-99');
   const [editBuffer, setEditBuffer] = useState<number[]>([]);
+  const [socInitialValues, setSocInitialValues] = useState<number[]>([45, 53, 61]);
+  const [socModalOpen, setSocModalOpen] = useState(false);
+  const [socEditBuffer, setSocEditBuffer] = useState<number[]>([45, 53, 61]);
   const [hiddenSeriesKeys, setHiddenSeriesKeys] = useState<Record<string, boolean>>({});
   const [resourceExpanded, setResourceExpanded] = useState(false);
   const [selectedAgentId, setSelectedAgentId] = useState('agent-b');
@@ -311,7 +314,7 @@ export default function DeclarationPlanPage() {
 
   const bessSocRows = useMemo(() => {
     const seriesSoc = store.bess.map((series, seriesIdx) => {
-      const initialSoc = 45 + seriesIdx * 8;
+      const initialSoc = clampByRange(socInitialValues[seriesIdx] ?? 50, 0, 100);
       const socData: number[] = [];
       let soc = initialSoc;
       series.data.forEach((kw) => {
@@ -330,12 +333,30 @@ export default function DeclarationPlanPage() {
       });
       return row;
     });
-  }, [store.bess]);
+  }, [store.bess, socInitialValues]);
 
   const openUpload = (title: string) => {
     setUploadTitle(title);
     popup('info', '提示', '請上傳 CSV 檔案');
     setUploadOpen(true);
+  };
+
+  const openSocModify = () => {
+    setSocEditBuffer([...socInitialValues]);
+    setSocModalOpen(true);
+  };
+
+  const saveSocInitial = () => {
+    const next = socEditBuffer.map((v, idx) => {
+      const clamped = clampByRange(v, 0, 100);
+      if (!Number.isFinite(v) || v !== clamped) {
+        popup('warning', '警告', `BESS${idx + 1} 初始SOC超出範圍，已修正為 ${clamped.toFixed(1)}%`);
+      }
+      return clamped;
+    });
+    setSocInitialValues(next);
+    popup('success', '成功', '已更新初始 SOC，後續時段由系統自動計算');
+    setSocModalOpen(false);
   };
 
   const openModify = (preset?: ResourceCategory) => {
@@ -430,12 +451,23 @@ export default function DeclarationPlanPage() {
   const surplusKw = Math.max(firstInterval.gen - firstInterval.load, 0);
   const storageChargingKw = Math.max(firstInterval.bess, 0);
   const unstoredSurplusKw = Math.max(surplusKw - storageChargingKw, 0);
+  const latestSocValues = store.bess.map((_, idx) => {
+    const row = bessSocRows[bessSocRows.length - 1];
+    return Number((row?.[`soc${idx}`] as number | undefined) ?? 0);
+  });
+  const socHasRed = latestSocValues.some((soc) => soc <= 10 || soc >= 90);
+  const socHasOrange = latestSocValues.some((soc) => (soc > 10 && soc <= 20) || (soc >= 80 && soc < 90));
   const lampConfig =
     unstoredSurplusKw > 3
       ? { color: 'bg-red-500', text: 'text-red-700', label: '危險', icon: 'fas fa-triangle-exclamation' }
       : unstoredSurplusKw > 1
         ? { color: 'bg-orange-500', text: 'text-orange-700', label: '注意', icon: 'fas fa-circle-exclamation' }
         : { color: 'bg-emerald-500', text: 'text-emerald-700', label: '正常', icon: 'fas fa-circle-check' };
+  const socLampConfig = socHasRed
+    ? { color: 'bg-red-500', text: 'text-red-700', label: '異常', icon: 'fas fa-triangle-exclamation' }
+    : socHasOrange
+      ? { color: 'bg-orange-500', text: 'text-orange-700', label: '警告', icon: 'fas fa-circle-exclamation' }
+      : { color: 'bg-emerald-500', text: 'text-emerald-700', label: '正常', icon: 'fas fa-circle-check' };
 
   return (
     <div className="space-y-6 pb-10">
@@ -501,25 +533,24 @@ export default function DeclarationPlanPage() {
 
       <section id="declaration-section-total" className="scroll-mt-28 space-y-6">
         <h2 className={sectionTitleClass}>3.1 總量</h2>
-        <div className="rounded-2xl border border-slate-300 bg-white p-5 shadow-sm">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-3">
-              <span className={`inline-flex h-4 w-4 rounded-full ${lampConfig.color}`} />
-              <p className={`text-sm font-bold ${lampConfig.text}`}>
-                <i className={`${lampConfig.icon} mr-2`} />
-                餘電燈號：{lampConfig.label}（未儲存餘電 {unstoredSurplusKw.toFixed(3)} kW）
-              </p>
-            </div>
-            <p className="text-xs font-semibold text-slate-700">
-              計算：餘電 = max(發電 - 用電, 0)，未儲存餘電 = max(餘電 - 儲能吸收, 0)
-            </p>
-          </div>
-          <p className="mt-2 text-sm font-bold text-indigo-700">
+        <div className="rounded-2xl border border-slate-300 bg-white p-5 shadow-sm space-y-2">
+          <p className={`text-sm font-bold ${lampConfig.text}`}>
+            <span className={`mr-2 inline-flex h-3.5 w-3.5 rounded-full ${lampConfig.color}`} />
+            餘電燈號：{lampConfig.label}（未儲存餘電 {unstoredSurplusKw.toFixed(3)} kW）
+          </p>
+          <p className="text-xs text-slate-700">
+            註解：若未儲存餘電超過 1 kW-3kW 顯示橘燈；超過 3 kW 顯示紅燈；其餘顯示綠燈。
+          </p>
+          <p className={`text-sm font-bold ${socLampConfig.text}`}>
+            <span className={`mr-2 inline-flex h-3.5 w-3.5 rounded-full ${socLampConfig.color}`} />
+            儲能SOC燈號：{socLampConfig.label} ({socLampConfig.label === '正常' ? '沒有超過安全上下限' : '請檢查SOC區間'})
+          </p>
+          <p className="text-xs text-slate-700">
+            註解：若SOC介於0-20%或是80-100% 顯示橘燈(警告)；介於0-10%、90-100%顯示紅燈(異常)；其餘顯示綠燈正常。
+          </p>
+          <p className="text-sm font-bold text-indigo-700">
             <i className="fas fa-clock mr-2" />
             儲能只可以在10:00-14:00充電、放電只可以在16:00-20:00之間
-          </p>
-          <p className="mt-2 text-xs text-slate-700">
-            註解：若未儲存餘電超過 1 kW 顯示橘燈；超過 3 kW 顯示紅燈；其餘顯示綠燈。
           </p>
         </div>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -530,7 +561,7 @@ export default function DeclarationPlanPage() {
             >
               <div className="mb-3 flex items-center justify-between">
                 <p className="text-xs font-bold uppercase tracking-wide text-slate-700">{card.title}</p>
-                <i className={`${card.icon} ${card.iconColor} text-lg`} />
+                <i className={`${card.icon} ${card.iconColor} text-3xl`} />
               </div>
               <p className="text-3xl font-bold text-slate-900">
                 {card.value} <span className="text-sm font-medium text-slate-700">{card.unit}</span>
@@ -661,40 +692,6 @@ export default function DeclarationPlanPage() {
             </ResponsiveContainer>
           </div>
 
-          <div className="mt-8 border-t border-slate-200 pt-6">
-            <h4 className="mb-4 text-base font-bold text-slate-900">儲能明細：BESS 排程計畫SOC（0~100）</h4>
-            <div className={chartWrap}>
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={bessSocRows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" />
-                  <XAxis dataKey="time" tick={axisStyle} interval={7} />
-                  <YAxis tick={axisStyle} domain={[0, 100]}>
-                    <Label value="SOC (%)" angle={-90} position="insideLeft" fill="#0f172a" />
-                  </YAxis>
-                  <Tooltip
-                    contentStyle={{ borderRadius: 12, borderColor: '#94a3b8', color: '#0f172a' }}
-                    formatter={(value: number) => [`${Number(value).toFixed(1)} %`, '']}
-                  />
-                  <Legend
-                    wrapperStyle={{ fontSize: 11, color: '#0f172a', cursor: 'pointer' }}
-                    onClick={(entry) => toggleLegend((entry as { dataKey?: string }).dataKey ?? '')}
-                  />
-                  {store.bess.map((obj, i) => (
-                    <Line
-                      key={`soc-${obj.id}`}
-                      type="monotone"
-                      dataKey={`soc${i}`}
-                      hide={isSeriesHidden(`soc${i}`)}
-                      name={`SOC ${obj.id} (%)`}
-                      stroke={BESS_BAR_COLORS[i % BESS_BAR_COLORS.length]}
-                      strokeWidth={2.2}
-                      dot={false}
-                    />
-                  ))}
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
         </div>
       </section>
 
@@ -867,6 +864,63 @@ export default function DeclarationPlanPage() {
                 ))}
               </BarChart>
             </ResponsiveContainer>
+          </div>
+
+          <div className="mt-8 border-t border-slate-200 pt-6">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h4 className="text-base font-bold text-slate-900">儲能明細：BESS 排程計畫SOC（0~100）</h4>
+                <p className="text-sm text-slate-700">填入初始 SOC 即可，其餘時段由系統依充放電排程自動計算。</p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-slate-400 text-slate-800 hover:bg-slate-100"
+                  onClick={() => openUpload('儲能SOC初始值上傳')}
+                >
+                  上傳
+                </Button>
+                <Button
+                  type="button"
+                  className="bg-indigo-600 text-white hover:bg-indigo-700"
+                  onClick={openSocModify}
+                >
+                  修改
+                </Button>
+              </div>
+            </div>
+            <div className={chartWrap}>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={bessSocRows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" />
+                  <XAxis dataKey="time" tick={axisStyle} interval={7} />
+                  <YAxis tick={axisStyle} domain={[0, 100]}>
+                    <Label value="SOC (%)" angle={-90} position="insideLeft" fill="#0f172a" />
+                  </YAxis>
+                  <Tooltip
+                    contentStyle={{ borderRadius: 12, borderColor: '#94a3b8', color: '#0f172a' }}
+                    formatter={(value: number) => [`${Number(value).toFixed(1)} %`, '']}
+                  />
+                  <Legend
+                    wrapperStyle={{ fontSize: 11, color: '#0f172a', cursor: 'pointer' }}
+                    onClick={(entry) => toggleLegend((entry as { dataKey?: string }).dataKey ?? '')}
+                  />
+                  {store.bess.map((obj, i) => (
+                    <Line
+                      key={`soc-${obj.id}`}
+                      type="monotone"
+                      dataKey={`soc${i}`}
+                      hide={isSeriesHidden(`soc${i}`)}
+                      name={`SOC ${obj.id} (%)`}
+                      stroke={BESS_BAR_COLORS[i % BESS_BAR_COLORS.length]}
+                      strokeWidth={2.2}
+                      dot={false}
+                    />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         </div>
       </section>
@@ -1044,6 +1098,44 @@ export default function DeclarationPlanPage() {
                 onClick={saveModify}
               >
                 確認提交變更並更新圖表
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {socModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setSocModalOpen(false)} />
+          <div className="relative z-10 w-full max-w-xl rounded-2xl border border-slate-300 bg-white p-6 shadow-2xl">
+            <h3 className="text-lg font-bold text-slate-900">設定初始 SOC（%）</h3>
+            <p className="mt-1 text-sm text-slate-700">只需填寫各儲能站初始SOC，後續由系統自動推算。</p>
+            <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              {store.bess.map((item, idx) => (
+                <div key={`soc-init-${item.id}`}>
+                  <label className="mb-1 block text-xs font-bold uppercase text-slate-700">{item.id} 初始SOC</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step="0.1"
+                    value={socEditBuffer[idx] ?? 0}
+                    onChange={(e) => {
+                      const next = [...socEditBuffer];
+                      next[idx] = Number.parseFloat(e.target.value);
+                      setSocEditBuffer(next);
+                    }}
+                    className="border-slate-400 bg-white text-slate-900"
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <Button type="button" variant="outline" onClick={() => setSocModalOpen(false)}>
+                取消
+              </Button>
+              <Button type="button" className="bg-indigo-600 text-white hover:bg-indigo-700" onClick={saveSocInitial}>
+                儲存
               </Button>
             </div>
           </div>
