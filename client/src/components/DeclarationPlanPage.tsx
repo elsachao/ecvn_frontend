@@ -474,7 +474,7 @@ export default function DeclarationPlanPage() {
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-[2fr_1fr]">
         <div className="rounded-2xl border border-slate-300 bg-white p-6 shadow-sm">
           <p className="text-xs font-bold tracking-wide text-slate-600">申報設定</p>
-          <h2 className="mt-2 text-3xl font-bold text-slate-900">每日負載預測申報</h2>
+          <h2 className="mt-2 text-3xl font-bold text-slate-900">每日申報計劃</h2>
           <p className="mt-2 text-sm text-slate-700">請選擇代理人與日期，執行 15 分鐘區間申報。</p>
 
           <div className="mt-6 grid grid-cols-1 gap-3 lg:grid-cols-2">
@@ -563,15 +563,19 @@ export default function DeclarationPlanPage() {
               key={card.title}
               className={`rounded-2xl border border-slate-300 bg-white p-6 shadow-sm border-t-4 ${card.accent}`}
             >
-              <div className="mb-3 flex items-center justify-between">
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-700">{card.title}</p>
-                <i
-                  className={`${card.icon} ${card.iconColor} text-6xl opacity-90 drop-shadow-[0_0_6px_rgba(59,130,246,0.45)]`}
-                />
+              <div className="flex items-center justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-bold uppercase tracking-wide text-slate-700">{card.title}</p>
+                  <p className="mt-2 text-3xl font-bold text-slate-900">
+                    {card.value} <span className="text-sm font-medium text-slate-700">{card.unit}</span>
+                  </p>
+                </div>
+                <div className="shrink-0">
+                  <i
+                    className={`${card.icon} ${card.iconColor} text-6xl opacity-90 drop-shadow-[0_0_6px_rgba(59,130,246,0.45)]`}
+                  />
+                </div>
               </div>
-              <p className="text-3xl font-bold text-slate-900">
-                {card.value} <span className="text-sm font-medium text-slate-700">{card.unit}</span>
-              </p>
             </div>
           ))}
         </div>
