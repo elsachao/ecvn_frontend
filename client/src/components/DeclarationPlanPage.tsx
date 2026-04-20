@@ -156,7 +156,7 @@ const SUMMARY_CARD_STATS = [
   {
     title: '發電總量 (G)',
     value: '3298.2',
-    unit: 'kW',
+    unit: 'kWh',
     icon: 'fas fa-solar-panel',
     accent: 'border-t-sky-500',
     iconColor: 'text-sky-600',
@@ -164,15 +164,15 @@ const SUMMARY_CARD_STATS = [
   {
     title: '用電總量 (L)',
     value: '2998.3',
-    unit: 'kW',
-    icon: 'fas fa-bolt',
+    unit: 'kWh',
+    icon: 'fas fa-plug-circle-bolt',
     accent: 'border-t-orange-500',
     iconColor: 'text-orange-600',
   },
   {
     title: '儲能狀態 (BESS)',
     value: '-10.3',
-    unit: 'kW',
+    unit: 'kWh',
     icon: 'fas fa-battery-three-quarters',
     accent: 'border-t-violet-600',
     iconColor: 'text-violet-600',
@@ -565,7 +565,9 @@ export default function DeclarationPlanPage() {
             >
               <div className="mb-3 flex items-center justify-between">
                 <p className="text-xs font-bold uppercase tracking-wide text-slate-700">{card.title}</p>
-                <i className={`${card.icon} ${card.iconColor} text-3xl`} />
+                <i
+                  className={`${card.icon} ${card.iconColor} text-6xl opacity-90 drop-shadow-[0_0_6px_rgba(59,130,246,0.45)]`}
+                />
               </div>
               <p className="text-3xl font-bold text-slate-900">
                 {card.value} <span className="text-sm font-medium text-slate-700">{card.unit}</span>
