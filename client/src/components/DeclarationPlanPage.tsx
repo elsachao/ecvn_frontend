@@ -28,8 +28,12 @@ import {
 } from 'recharts';
 
 const INTERVAL_COUNT = 96;
-const MIN_KW = 0;
-const MAX_KW = 50;
+const GENERATION_MIN_KW = 0;
+const GENERATION_MAX_KW = 50;
+const LOAD_MIN_KW = 0;
+const LOAD_MAX_KW = 50;
+const BESS_MIN_KW = -50;
+const BESS_MAX_KW = 50;
 
 function buildIntervalLabels(): string[] {
   return Array.from({ length: INTERVAL_COUNT }, (_, i) => {
@@ -45,12 +49,38 @@ const INTERVAL_LABELS = buildIntervalLabels();
 
 type ResourceCategory = 'gen' | 'load' | 'bess';
 type ResourceSeries = { id: string; data: number[] };
+type AgentResourceOption = { id: string; label: string };
+type AgentProfile = {
+  id: string;
+  name: string;
+  taxId: string;
+  contractCode: string;
+  contractCount: number;
+  resources: AgentResourceOption[];
+};
 
 function clampToKwRange(v: number): number {
-  if (!Number.isFinite(v)) return MIN_KW;
-  if (v < MIN_KW) return MIN_KW;
-  if (v > MAX_KW) return MAX_KW;
+  if (!Number.isFinite(v)) return GENERATION_MIN_KW;
+  if (v < GENERATION_MIN_KW) return GENERATION_MIN_KW;
+  if (v > GENERATION_MAX_KW) return GENERATION_MAX_KW;
   return v;
+}
+
+function getRangeByCategory(category: ResourceCategory): { min: number; max: number } {
+  if (category === 'bess') {
+    return { min: BESS_MIN_KW, max: BESS_MAX_KW };
+  }
+  if (category === 'load') {
+    return { min: LOAD_MIN_KW, max: LOAD_MAX_KW };
+  }
+  return { min: GENERATION_MIN_KW, max: GENERATION_MAX_KW };
+}
+
+function clampByRange(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) return min;
+  if (value < min) return min;
+  if (value > max) return max;
+  return value;
 }
 
 function createInitialStore(): Record<ResourceCategory, ResourceSeries[]> {
@@ -109,6 +139,42 @@ const SUMMARY_CARD_STATS = [
   },
 ] as const;
 
+const AGENT_PROFILES: AgentProfile[] = [
+  {
+    id: 'agent-a',
+    name: '台電綠能聚合商',
+    taxId: '87654321',
+    contractCode: 'CON-AGT-2026-001',
+    contractCount: 1,
+    resources: [
+      { id: 'resource-a-1', label: '台南光電一號案場' },
+      { id: 'resource-a-2', label: '嘉義風電三號案場' },
+    ],
+  },
+  {
+    id: 'agent-b',
+    name: '中區綜合能源代理商',
+    taxId: '28469173',
+    contractCode: 'CON-AGT-2026-018',
+    contractCount: 3,
+    resources: [
+      { id: 'resource-b-1', label: '彰化負載聚合群組' },
+      { id: 'resource-b-2', label: '台中儲能聯合站' },
+    ],
+  },
+  {
+    id: 'agent-c',
+    name: '南部智慧電力聚合商',
+    taxId: '50931764',
+    contractCode: 'CON-AGT-2026-026',
+    contractCount: 2,
+    resources: [
+      { id: 'resource-c-1', label: '高雄再生能源池' },
+      { id: 'resource-c-2', label: '屏東調度資源群' },
+    ],
+  },
+];
+
 function popup(icon: SweetAlertIcon, title: string, text: string) {
   void Swal.fire({
     icon,
@@ -132,7 +198,23 @@ export default function DeclarationPlanPage() {
   const [modifyTargetIndex, setModifyTargetIndex] = useState(0);
   const [refCode, setRefCode] = useState('REF-EDIT-99');
   const [editBuffer, setEditBuffer] = useState<number[]>([]);
+  const [hiddenSeriesKeys, setHiddenSeriesKeys] = useState<Record<string, boolean>>({});
+  const [selectedAgentId, setSelectedAgentId] = useState(AGENT_PROFILES[0].id);
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
+  const [selectedResourceId, setSelectedResourceId] = useState(AGENT_PROFILES[0].resources[0]?.id ?? '');
   const csvInputRef = useRef<HTMLInputElement>(null);
+
+  const selectedAgent = useMemo(
+    () => AGENT_PROFILES.find((agent) => agent.id === selectedAgentId) ?? AGENT_PROFILES[0],
+    [selectedAgentId]
+  );
+
+  useEffect(() => {
+    const currentResource = selectedAgent.resources.find((res) => res.id === selectedResourceId);
+    if (!currentResource) {
+      setSelectedResourceId(selectedAgent.resources[0]?.id ?? '');
+    }
+  }, [selectedAgent, selectedResourceId]);
 
   useEffect(() => {
     if (currentView !== 'declaration-plan') return;
@@ -201,10 +283,15 @@ export default function DeclarationPlanPage() {
   }, [modifyOpen, modifyCategory, modifyTargetIndex, store]);
 
   const validateAndClampValue = useCallback(
-    (raw: number, interval: string): number => {
-      const clamped = clampToKwRange(raw);
+    (raw: number, interval: string, category: ResourceCategory): number => {
+      const range = getRangeByCategory(category);
+      const clamped = clampByRange(raw, range.min, range.max);
       if (!Number.isFinite(raw) || raw !== clamped) {
-        popup('warning', '警告', `${interval} 超出範圍，已自動修正為 ${clamped.toFixed(3)} kW`);
+        popup(
+          'warning',
+          '警告',
+          `${interval} 超出範圍，已自動修正為 ${clamped.toFixed(3)} kW（允許 ${range.min}~${range.max}）`
+        );
       }
       return clamped;
     },
@@ -223,11 +310,11 @@ export default function DeclarationPlanPage() {
     (index: number) => {
       setEditBuffer((prev) => {
         const next = [...prev];
-        next[index] = validateAndClampValue(next[index], INTERVAL_LABELS[index]);
+        next[index] = validateAndClampValue(next[index], INTERVAL_LABELS[index], modifyCategory);
         return next;
       });
     },
-    [validateAndClampValue]
+    [validateAndClampValue, modifyCategory]
   );
 
   const saveModify = () => {
@@ -235,7 +322,7 @@ export default function DeclarationPlanPage() {
       popup('error', '錯誤', '請輸入參考碼後再提交');
       return;
     }
-    const newData = editBuffer.map((v, i) => validateAndClampValue(v, INTERVAL_LABELS[i]));
+    const newData = editBuffer.map((v, i) => validateAndClampValue(v, INTERVAL_LABELS[i], modifyCategory));
     setStore((prev) => ({
       ...prev,
       [modifyCategory]: prev[modifyCategory].map((s, i) =>
@@ -250,6 +337,11 @@ export default function DeclarationPlanPage() {
   const sectionTitleClass = 'border-b border-slate-300 pb-2 text-lg font-bold text-slate-900';
   const axisStyle = { fontSize: 10, fill: '#0f172a' };
   const tooltipFormatter = (value: number) => [`${Number(value).toFixed(3)} kW`, ''];
+  const modifyRange = getRangeByCategory(modifyCategory);
+  const toggleLegend = (key: string) => {
+    setHiddenSeriesKeys((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+  const isSeriesHidden = (key: string) => Boolean(hiddenSeriesKeys[key]);
   const firstInterval = summaryRows[0] ?? { gen: 0, load: 0, bess: 0 };
   const surplusKw = Math.max(firstInterval.gen - firstInterval.load, 0);
   const unstoredSurplusKw = Math.max(surplusKw - firstInterval.bess, 0);
@@ -262,6 +354,91 @@ export default function DeclarationPlanPage() {
 
   return (
     <div className="space-y-6 pb-10">
+      <section className="grid grid-cols-1 gap-4 lg:grid-cols-[2fr_1fr]">
+        <div className="rounded-2xl border border-slate-300 bg-white p-6 shadow-sm">
+          <p className="text-xs font-bold tracking-wide text-slate-600">申報設定</p>
+          <h2 className="mt-2 text-3xl font-bold text-slate-900">每日負載預測申報</h2>
+          <p className="mt-2 text-sm text-slate-700">請選擇代理人與日期，依資源別執行 15 分鐘區間申報。</p>
+
+          <div className="mt-6 grid grid-cols-1 gap-3 lg:grid-cols-3">
+            <div>
+              <label className="mb-2 block text-xs font-bold uppercase text-slate-700">代理人名稱</label>
+              <Select
+                value={selectedAgent.id}
+                onValueChange={(value) => {
+                  setSelectedAgentId(value);
+                }}
+              >
+                <SelectTrigger className="border-slate-400 bg-white text-slate-900">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {AGENT_PROFILES.map((agent) => (
+                    <SelectItem key={agent.id} value={agent.id}>
+                      {agent.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-xs font-bold uppercase text-slate-700">代理人資源</label>
+              <Select value={selectedResourceId} onValueChange={setSelectedResourceId}>
+                <SelectTrigger className="border-slate-400 bg-white text-slate-900">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {selectedAgent.resources.map((resource) => (
+                    <SelectItem key={resource.id} value={resource.id}>
+                      {resource.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-xs font-bold uppercase text-slate-700">申報日期</label>
+              <Input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="border-slate-400 bg-white text-slate-900"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-300 bg-white p-6 shadow-sm">
+          <h3 className="text-sm font-bold text-slate-700">代理人資訊</h3>
+          <div className="mt-4 space-y-3 text-sm text-slate-800">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-slate-600">代理人名稱</span>
+              <span className="font-semibold text-right">{selectedAgent.name}</span>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-slate-600">統編</span>
+              <span className="font-semibold">{selectedAgent.taxId}</span>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-slate-600">合約代號</span>
+              <span className="font-semibold">{selectedAgent.contractCode}</span>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-slate-600">目前合約張數</span>
+              <span className="font-semibold">{selectedAgent.contractCount}</span>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-slate-600">目前使用資源</span>
+              <span className="font-semibold text-right">
+                {selectedAgent.resources.find((resource) => resource.id === selectedResourceId)?.label ?? '-'}
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* 3.1 總量 */}
       <section id="declaration-section-total" className="scroll-mt-28 space-y-6">
         <h2 className={sectionTitleClass}>3.1 總量</h2>
@@ -329,77 +506,46 @@ export default function DeclarationPlanPage() {
                   contentStyle={{ borderRadius: 12, borderColor: '#94a3b8', color: '#0f172a' }}
                   formatter={tooltipFormatter}
                 />
-                <Legend wrapperStyle={{ fontSize: 12, color: '#0f172a' }} />
-                <Line type="monotone" dataKey="gen" name="發電 (kW)" stroke="#0ea5e9" strokeWidth={2.2} dot={false} />
+                <Legend
+                  wrapperStyle={{ fontSize: 12, color: '#0f172a', cursor: 'pointer' }}
+                  onClick={(entry) => toggleLegend((entry as { dataKey?: string }).dataKey ?? '')}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="gen"
+                  hide={isSeriesHidden('gen')}
+                  name="發電 (kW)"
+                  stroke="#0ea5e9"
+                  strokeWidth={2.2}
+                  dot={false}
+                />
                 <Line
                   type="monotone"
                   dataKey="load"
+                  hide={isSeriesHidden('load')}
                   name="用電 (kW)"
                   stroke="#ef4444"
                   strokeWidth={2.2}
                   dot={false}
                   strokeDasharray="5 5"
                 />
-                <Bar dataKey="bess" name="儲能 (kW)" fill="#4f46e5" radius={[4, 4, 0, 0]} barSize={6} />
+                <Bar
+                  dataKey="bess"
+                  hide={isSeriesHidden('bess')}
+                  name="儲能 (kW)"
+                  fill="#4f46e5"
+                  radius={[4, 4, 0, 0]}
+                  barSize={6}
+                />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
         </div>
       </section>
 
-      {/* 3.2 負載預測 */}
-      <section id="declaration-section-load" className="scroll-mt-28 space-y-4">
-        <h2 className={sectionTitleClass}>3.2 負載預測</h2>
-        <div className="rounded-2xl border border-slate-300 bg-white p-6 shadow-sm md:p-8 border-t-4 border-t-rose-500">
-          <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <h3 className="text-base font-bold text-slate-900">用電明細：L 系列用戶（kW）</h3>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                className="border-slate-400 text-slate-800 hover:bg-slate-100"
-                onClick={() => openUpload('用電用戶資料上傳')}
-              >
-                上傳
-              </Button>
-              <Button type="button" className="bg-rose-600 text-white hover:bg-rose-700" onClick={() => openModify('load')}>
-                修改
-              </Button>
-            </div>
-          </div>
-          <div className={chartWrap}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={loadRows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" />
-                <XAxis dataKey="time" tick={axisStyle} interval={7} />
-                <YAxis tick={axisStyle}>
-                  <Label value="kW" angle={-90} position="insideLeft" fill="#0f172a" />
-                </YAxis>
-                <Tooltip
-                  contentStyle={{ borderRadius: 12, borderColor: '#94a3b8', color: '#0f172a' }}
-                  formatter={tooltipFormatter}
-                />
-                <Legend wrapperStyle={{ fontSize: 11, color: '#0f172a' }} />
-                {store.load.map((obj, i) => (
-                  <Line
-                    key={obj.id}
-                    type="monotone"
-                    dataKey={`l${i}`}
-                    name={`用戶 ${obj.id} (kW)`}
-                    stroke={LOAD_LINE_COLORS[i % LOAD_LINE_COLORS.length]}
-                    strokeWidth={2.2}
-                    dot={false}
-                  />
-                ))}
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </section>
-
-      {/* 3.3 再生能源預測 */}
+      {/* 3.2 再生能源預測 */}
       <section id="declaration-section-renewable" className="scroll-mt-28 space-y-4">
-        <h2 className={sectionTitleClass}>3.3 再生能源預測</h2>
+        <h2 className={sectionTitleClass}>3.2 再生能源預測</h2>
         <div className="rounded-2xl border border-slate-300 bg-white p-6 shadow-sm md:p-8 border-t-4 border-t-cyan-500">
           <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <h3 className="text-base font-bold text-slate-900">發電明細：G 系列案場（kW）</h3>
@@ -429,14 +575,72 @@ export default function DeclarationPlanPage() {
                   contentStyle={{ borderRadius: 12, borderColor: '#94a3b8', color: '#0f172a' }}
                   formatter={tooltipFormatter}
                 />
-                <Legend wrapperStyle={{ fontSize: 11, color: '#0f172a' }} />
+                <Legend
+                  wrapperStyle={{ fontSize: 11, color: '#0f172a', cursor: 'pointer' }}
+                  onClick={(entry) => toggleLegend((entry as { dataKey?: string }).dataKey ?? '')}
+                />
                 {store.gen.map((obj, i) => (
                   <Line
                     key={obj.id}
                     type="monotone"
                     dataKey={`g${i}`}
+                    hide={isSeriesHidden(`g${i}`)}
                     name={`場號 ${obj.id} (kW)`}
                     stroke={GEN_LINE_COLORS[i % GEN_LINE_COLORS.length]}
+                    strokeWidth={2.2}
+                    dot={false}
+                  />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </section>
+
+      {/* 3.3 負載預測 */}
+      <section id="declaration-section-load" className="scroll-mt-28 space-y-4">
+        <h2 className={sectionTitleClass}>3.3 負載預測</h2>
+        <div className="rounded-2xl border border-slate-300 bg-white p-6 shadow-sm md:p-8 border-t-4 border-t-rose-500">
+          <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <h3 className="text-base font-bold text-slate-900">用電明細：L 系列用戶（kW）</h3>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="border-slate-400 text-slate-800 hover:bg-slate-100"
+                onClick={() => openUpload('用電用戶資料上傳')}
+              >
+                上傳
+              </Button>
+              <Button type="button" className="bg-rose-600 text-white hover:bg-rose-700" onClick={() => openModify('load')}>
+                修改
+              </Button>
+            </div>
+          </div>
+          <div className={chartWrap}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={loadRows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" />
+                <XAxis dataKey="time" tick={axisStyle} interval={7} />
+                <YAxis tick={axisStyle}>
+                  <Label value="kW" angle={-90} position="insideLeft" fill="#0f172a" />
+                </YAxis>
+                <Tooltip
+                  contentStyle={{ borderRadius: 12, borderColor: '#94a3b8', color: '#0f172a' }}
+                  formatter={tooltipFormatter}
+                />
+                <Legend
+                  wrapperStyle={{ fontSize: 11, color: '#0f172a', cursor: 'pointer' }}
+                  onClick={(entry) => toggleLegend((entry as { dataKey?: string }).dataKey ?? '')}
+                />
+                {store.load.map((obj, i) => (
+                  <Line
+                    key={obj.id}
+                    type="monotone"
+                    dataKey={`l${i}`}
+                    hide={isSeriesHidden(`l${i}`)}
+                    name={`用戶 ${obj.id} (kW)`}
+                    stroke={LOAD_LINE_COLORS[i % LOAD_LINE_COLORS.length]}
                     strokeWidth={2.2}
                     dot={false}
                   />
@@ -482,11 +686,15 @@ export default function DeclarationPlanPage() {
                   contentStyle={{ borderRadius: 12, borderColor: '#94a3b8', color: '#0f172a' }}
                   formatter={tooltipFormatter}
                 />
-                <Legend wrapperStyle={{ fontSize: 11, color: '#0f172a' }} />
+                <Legend
+                  wrapperStyle={{ fontSize: 11, color: '#0f172a', cursor: 'pointer' }}
+                  onClick={(entry) => toggleLegend((entry as { dataKey?: string }).dataKey ?? '')}
+                />
                 {store.bess.map((obj, i) => (
                   <Bar
                     key={obj.id}
                     dataKey={`b${i}`}
+                    hide={isSeriesHidden(`b${i}`)}
                     name={`儲能站 ${obj.id} (kW)`}
                     stackId="bess"
                     fill={BESS_BAR_COLORS[i % BESS_BAR_COLORS.length]}
@@ -579,7 +787,7 @@ export default function DeclarationPlanPage() {
               <div>
                 <h3 className="text-lg font-bold text-slate-900">智慧資源修改面板</h3>
                 <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-700">
-                  Interval Adjustment（96 時段，範圍 0~50 kW）
+                  Interval Adjustment（96 時段，範圍依資源類別自動切換）
                 </p>
               </div>
               <button type="button" className="text-slate-700 hover:text-slate-900" onClick={() => setModifyOpen(false)}>
@@ -642,7 +850,7 @@ export default function DeclarationPlanPage() {
                     <tr className="border-b border-slate-300 text-xs font-bold uppercase text-slate-700">
                       <th className="p-3 pl-6">時段</th>
                       <th className="p-3 text-center">調整量 (kW)</th>
-                      <th className="p-3 pr-6">滑動調節 (0~50 kW)</th>
+                      <th className="p-3 pr-6">滑動調節 ({modifyRange.min}~{modifyRange.max} kW)</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -661,10 +869,10 @@ export default function DeclarationPlanPage() {
                         </td>
                         <td className="p-3 pr-6">
                           <Slider
-                            min={MIN_KW}
-                            max={MAX_KW}
+                            min={modifyRange.min}
+                            max={modifyRange.max}
                             step={0.001}
-                            value={[clampToKwRange(editBuffer[i] ?? 0)]}
+                            value={[clampByRange(editBuffer[i] ?? 0, modifyRange.min, modifyRange.max)]}
                             onValueChange={(vals) => updateEditValue(i, vals[0] ?? 0)}
                             onValueCommit={() => validateIndexOnBlur(i)}
                             className="[&_[data-slot=slider-track]]:bg-blue-200 [&_[data-slot=slider-range]]:bg-blue-600 [&_[data-slot=slider-thumb]]:border-blue-600"
