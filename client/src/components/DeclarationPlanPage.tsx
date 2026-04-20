@@ -309,6 +309,29 @@ export default function DeclarationPlanPage() {
     [store.bess]
   );
 
+  const bessSocRows = useMemo(() => {
+    const seriesSoc = store.bess.map((series, seriesIdx) => {
+      const initialSoc = 45 + seriesIdx * 8;
+      const socData: number[] = [];
+      let soc = initialSoc;
+      series.data.forEach((kw) => {
+        // 15 分鐘轉換為 SOC 變化比例（示意邏輯）
+        const delta = (kw / 12) * 2.2;
+        soc = clampByRange(soc + delta, 0, 100);
+        socData.push(soc);
+      });
+      return { id: series.id, socData };
+    });
+
+    return INTERVAL_LABELS.map((time, i) => {
+      const row: Record<string, string | number> = { time };
+      seriesSoc.forEach((series, idx) => {
+        row[`soc${idx}`] = series.socData[i];
+      });
+      return row;
+    });
+  }, [store.bess]);
+
   const openUpload = (title: string) => {
     setUploadTitle(title);
     popup('info', '提示', '請上傳 CSV 檔案');
@@ -547,12 +570,24 @@ export default function DeclarationPlanPage() {
               </div>
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                 <p className="mb-2 text-sm font-bold text-indigo-700">儲能資源（BESS）</p>
-                {bessResourceTotals.map((item) => (
-                  <div key={item.id} className="text-sm text-slate-800">
-                    <p>充電{item.id} 合計 {item.charge.toFixed(1)} kW</p>
-                    <p>放電{item.id} 合計 {item.discharge.toFixed(1)} kW</p>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div className="rounded-lg border border-indigo-200 bg-white p-3">
+                    <p className="mb-1 text-xs font-bold uppercase text-indigo-700">充電</p>
+                    {bessResourceTotals.map((item) => (
+                      <p key={`charge-${item.id}`} className="text-sm text-slate-800">
+                        充電{item.id} 合計 {item.charge.toFixed(1)} kW
+                      </p>
+                    ))}
                   </div>
-                ))}
+                  <div className="rounded-lg border border-violet-200 bg-white p-3">
+                    <p className="mb-1 text-xs font-bold uppercase text-violet-700">放電</p>
+                    {bessResourceTotals.map((item) => (
+                      <p key={`discharge-${item.id}`} className="text-sm text-slate-800">
+                        放電{item.id} 合計 {item.discharge.toFixed(1)} kW
+                      </p>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -624,6 +659,41 @@ export default function DeclarationPlanPage() {
                 />
               </ComposedChart>
             </ResponsiveContainer>
+          </div>
+
+          <div className="mt-8 border-t border-slate-200 pt-6">
+            <h4 className="mb-4 text-base font-bold text-slate-900">儲能明細：BESS 排程計畫SOC（0~100）</h4>
+            <div className={chartWrap}>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={bessSocRows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" />
+                  <XAxis dataKey="time" tick={axisStyle} interval={7} />
+                  <YAxis tick={axisStyle} domain={[0, 100]}>
+                    <Label value="SOC (%)" angle={-90} position="insideLeft" fill="#0f172a" />
+                  </YAxis>
+                  <Tooltip
+                    contentStyle={{ borderRadius: 12, borderColor: '#94a3b8', color: '#0f172a' }}
+                    formatter={(value: number) => [`${Number(value).toFixed(1)} %`, '']}
+                  />
+                  <Legend
+                    wrapperStyle={{ fontSize: 11, color: '#0f172a', cursor: 'pointer' }}
+                    onClick={(entry) => toggleLegend((entry as { dataKey?: string }).dataKey ?? '')}
+                  />
+                  {store.bess.map((obj, i) => (
+                    <Line
+                      key={`soc-${obj.id}`}
+                      type="monotone"
+                      dataKey={`soc${i}`}
+                      hide={isSeriesHidden(`soc${i}`)}
+                      name={`SOC ${obj.id} (%)`}
+                      stroke={BESS_BAR_COLORS[i % BESS_BAR_COLORS.length]}
+                      strokeWidth={2.2}
+                      dot={false}
+                    />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         </div>
       </section>
