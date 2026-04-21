@@ -733,14 +733,17 @@ export default function DeclarationPlanPage() {
 
               <UiTooltip delayDuration={200}>
                 <TooltipTrigger asChild>
-                  <div className="flex min-w-[96px] flex-col items-center gap-2">
+                  <div className="flex min-w-[118px] flex-col items-center gap-2">
                     <p className="text-lg font-bold text-slate-900">累積量</p>
                     <button
                       type="button"
                       aria-label={`累積轉供量：${cumulativeTransferKwh.toFixed(1)} kWh`}
-                      className="flex h-14 w-14 shrink-0 cursor-help items-center justify-center rounded-full border border-amber-200 bg-amber-50 text-amber-700 ring-2 ring-amber-300 shadow-[0_0_20px_rgba(245,158,11,0.45)] transition hover:scale-105 hover:border-amber-300 hover:bg-amber-100 focus-visible:outline focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2"
+                      className="flex h-20 w-20 shrink-0 cursor-help flex-col items-center justify-center rounded-full border border-amber-200 bg-amber-50 text-amber-700 ring-2 ring-amber-300 shadow-[0_0_20px_rgba(245,158,11,0.45)] transition hover:scale-105 hover:border-amber-300 hover:bg-amber-100 focus-visible:outline focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2"
                     >
-                      <i className="fas fa-chart-area text-xl" />
+                      <span className="font-black leading-none text-2xl tabular-nums">
+                        {cumulativeTransferKwh.toFixed(0)}
+                      </span>
+                      <span className="mt-0.5 text-[10px] font-bold uppercase tracking-wide">kWh</span>
                     </button>
                   </div>
                 </TooltipTrigger>
@@ -1108,7 +1111,7 @@ export default function DeclarationPlanPage() {
                   dot={false}
                 />
                 <Area
-                  type="monotone"
+                  type="linear"
                   dataKey="transfer"
                   hide={isSeriesHidden('transfer')}
                   fill={TRANSFER_FILL_65}
@@ -1118,7 +1121,7 @@ export default function DeclarationPlanPage() {
                   isAnimationActive={false}
                 />
                 <Line
-                  type="monotone"
+                  type="linear"
                   dataKey="transfer"
                   hide={isSeriesHidden('transfer')}
                   name="合約轉供量"
