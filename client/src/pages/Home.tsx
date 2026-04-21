@@ -7,6 +7,7 @@ import Step3Storages from '@/components/Step3Storages';
 import ContractModal from '@/components/ContractModal';
 import StorageModal from '@/components/StorageModal';
 import DashboardAgentAggregation from '@/components/DashboardAgentAggregation';
+import DashboardRealTimeGeneration from '@/components/DashboardRealTimeGeneration';
 import DeclarationPlanPage from '@/components/DeclarationPlanPage';
 import RegistrationOverview from '@/components/RegistrationOverview';
 
@@ -32,6 +33,7 @@ function MainContent() {
             </>
           )}
           {currentView === 'dashboard-agent-aggregation' && <DashboardAgentAggregation />}
+          {currentView === 'dashboard-realtime-generation' && <DashboardRealTimeGeneration />}
           {currentView === 'declaration-plan' && <DeclarationPlanPage />}
         </main>
       </div>

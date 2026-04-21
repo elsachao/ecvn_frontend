@@ -36,7 +36,7 @@ const navModules: ModuleItem[] = [
     subItems: [
       { id: 'dash-2-1', label: '2.1 代理人資源聚合管理', view: 'dashboard-agent-aggregation' },
       { id: 'dash-2-2', label: '2.2 通訊資料' },
-      { id: 'dash-2-3', label: '2.3 即時發電量監控' },
+      { id: 'dash-2-3', label: '2.3 即時發電量監控', view: 'dashboard-realtime-generation' },
       { id: 'dash-2-4', label: '2.4 MVRN 分配' },
     ],
   },

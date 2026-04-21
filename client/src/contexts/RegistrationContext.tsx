@@ -5,7 +5,11 @@ import type { AppInfo, Contract, StorageDevice } from '@/types/index';
 /** 3. 申報計畫單頁內各錨點區塊 */
 export type PlanSection = 'total' | 'load' | 'renewable' | 'storage' | 'cop';
 
-export type AppMainView = 'registration' | 'dashboard-agent-aggregation' | 'declaration-plan';
+export type AppMainView =
+  | 'registration'
+  | 'dashboard-agent-aggregation'
+  | 'dashboard-realtime-generation'
+  | 'declaration-plan';
 
 interface RegistrationState {
   // UI 狀態
