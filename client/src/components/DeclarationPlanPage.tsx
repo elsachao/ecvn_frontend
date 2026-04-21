@@ -733,26 +733,26 @@ export default function DeclarationPlanPage() {
                 <div className="grid grid-cols-1 divide-y divide-slate-200 md:grid-cols-2 md:divide-x md:divide-y-0">
                   <dl className="space-y-6 p-6">
                     <div>
-                      <dt className="text-lg font-bold text-slate-500">代理人名稱</dt>
-                      <dd className="mt-2 text-4xl font-black tracking-tight text-slate-900">{selectedAgent.name}</dd>
+                      <dt className="text-sm font-bold text-slate-500">代理人名稱</dt>
+                      <dd className="mt-2 text-2xl font-black tracking-tight text-slate-900">{selectedAgent.name}</dd>
                     </div>
                     <div>
-                      <dt className="text-lg font-bold text-slate-500">統編</dt>
-                      <dd className="mt-2 text-4xl font-black tracking-tight text-slate-900">{selectedAgent.taxId}</dd>
+                      <dt className="text-sm font-bold text-slate-500">統編</dt>
+                      <dd className="mt-2 text-2xl font-black tracking-tight text-slate-900">{selectedAgent.taxId}</dd>
                     </div>
                   </dl>
                   <dl className="space-y-6 p-6">
                     <div>
-                      <dt className="text-lg font-bold text-slate-500">合約代號</dt>
-                      <dd className="mt-2 space-y-3 text-4xl font-black tracking-tight text-slate-900">
+                      <dt className="text-sm font-bold text-slate-500">合約代號</dt>
+                      <dd className="mt-2 space-y-2 text-2xl font-black tracking-tight text-slate-900">
                         {selectedAgent.contractCodes.map((code) => (
                           <p key={code}>{code}</p>
                         ))}
                       </dd>
                     </div>
                     <div>
-                      <dt className="text-lg font-bold text-slate-500">合約數量</dt>
-                      <dd className="mt-2 text-4xl font-black tracking-tight text-slate-900">
+                      <dt className="text-sm font-bold text-slate-500">合約數量</dt>
+                      <dd className="mt-2 text-2xl font-black tracking-tight text-slate-900">
                         {selectedAgent.contractCodes.length}
                       </dd>
                     </div>
