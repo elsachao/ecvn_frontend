@@ -248,6 +248,7 @@ function popup(icon: SweetAlertIcon, title: string, text: string) {
 
 export default function DeclarationPlanPage() {
   const { declarationPlanSection, declarationPlanNavSeq, currentView } = useRegistration();
+  const storagePassbookCoverUrl = new URL('storage-passbook-cover.png', document.baseURI).toString();
 
   const [store, setStore] = useState(createInitialStore);
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -1512,7 +1513,7 @@ export default function DeclarationPlanPage() {
                 >
                   <div
                     className="absolute inset-0 rounded-2xl border border-slate-700 bg-cover bg-center [backface-visibility:hidden]"
-                    style={{ backgroundImage: "url('/storage-passbook-cover.png')" }}
+                    style={{ backgroundImage: `url('${storagePassbookCoverUrl}')` }}
                   >
                     <div className="absolute inset-0 rounded-2xl bg-slate-900/25" />
                     <div className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2">
