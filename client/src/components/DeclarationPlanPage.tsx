@@ -354,6 +354,10 @@ export default function DeclarationPlanPage() {
       };
     });
   }, [store]);
+  const cumulativeTransferKwh = useMemo(
+    () => contractTransferRows.reduce((acc, row) => acc + row.transfer, 0) / 4,
+    [contractTransferRows]
+  );
 
   const genResourceTotals = useMemo(
     () =>
@@ -721,6 +725,31 @@ export default function DeclarationPlanPage() {
                 >
                   <p className="font-semibold">
                     儲能只可以在10:00-14:00充電、放電只可以在16:00-20:00之間
+                  </p>
+                </TooltipContent>
+              </UiTooltip>
+
+              <UiTooltip delayDuration={200}>
+                <TooltipTrigger asChild>
+                  <div className="flex min-w-[96px] flex-col items-center gap-2">
+                    <p className="text-lg font-bold text-slate-900">累積量</p>
+                    <button
+                      type="button"
+                      aria-label={`累積轉供量：${cumulativeTransferKwh.toFixed(1)} kWh`}
+                      className="flex h-14 w-14 shrink-0 cursor-help items-center justify-center rounded-full border border-amber-200 bg-amber-50 text-amber-700 ring-2 ring-amber-300 shadow-[0_0_20px_rgba(245,158,11,0.45)] transition hover:scale-105 hover:border-amber-300 hover:bg-amber-100 focus-visible:outline focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2"
+                    >
+                      <i className="fas fa-chart-area text-xl" />
+                    </button>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent
+                  side="left"
+                  sideOffset={8}
+                  className="max-w-xs border border-slate-300 bg-slate-100 text-slate-900 shadow-xl text-balance"
+                >
+                  <p className="font-semibold">累積轉供量：{cumulativeTransferKwh.toFixed(1)} kWh</p>
+                  <p className="mt-2 font-normal opacity-90">
+                    依當日每 15 分鐘合約轉供量加總換算（每筆 /4 小時）後得到，用於快速掌握今日已規劃轉供總量。
                   </p>
                 </TooltipContent>
               </UiTooltip>
