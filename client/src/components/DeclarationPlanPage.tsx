@@ -356,10 +356,38 @@ export default function DeclarationPlanPage() {
       };
     });
   }, [store]);
-  const cumulativeTransferKwh = useMemo(
-    () => contractTransferRows.reduce((acc, row) => acc + row.transfer, 0) / 4,
-    [contractTransferRows]
-  );
+  const cumulativeStorageEffectiveKwh = useMemo(() => {
+    const baseDate = new Date(`${selectedDate}T00:00:00`);
+    const dayStartMs = Number.isNaN(baseDate.getTime()) ? Date.now() : baseDate.getTime();
+    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+    const expiryMs = dayStartMs - sevenDaysMs;
+    type EnergyBucket = { ts: number; kwh: number };
+    const buckets: EnergyBucket[] = [];
+
+    summaryRows.forEach((row, idx) => {
+      const intervalTs = dayStartMs + idx * 15 * 60 * 1000;
+      const intervalKwh = row.bess / 4;
+      if (intervalKwh > 0) {
+        buckets.push({ ts: intervalTs, kwh: intervalKwh });
+        return;
+      }
+      if (intervalKwh < 0) {
+        let remainingDischarge = Math.abs(intervalKwh);
+        while (remainingDischarge > 0 && buckets.length > 0) {
+          const oldest = buckets[0];
+          if (!oldest) break;
+          const consumed = Math.min(oldest.kwh, remainingDischarge);
+          oldest.kwh -= consumed;
+          remainingDischarge -= consumed;
+          if (oldest.kwh <= 0.000001) buckets.shift();
+        }
+      }
+    });
+
+    return buckets
+      .filter((bucket) => bucket.ts >= expiryMs)
+      .reduce((acc, bucket) => acc + bucket.kwh, 0);
+  }, [summaryRows, selectedDate]);
 
   const genResourceTotals = useMemo(
     () =>
@@ -734,14 +762,14 @@ export default function DeclarationPlanPage() {
               <UiTooltip delayDuration={200}>
                 <TooltipTrigger asChild>
                   <div className="flex min-w-[118px] flex-col items-center gap-2">
-                    <p className="text-lg font-bold text-slate-900">累積量</p>
+                    <p className="text-lg font-bold text-slate-900">儲能累積量</p>
                     <button
                       type="button"
-                      aria-label={`累積轉供量：${cumulativeTransferKwh.toFixed(1)} kWh`}
+                      aria-label={`儲能累積有效量：${cumulativeStorageEffectiveKwh.toFixed(1)} kWh`}
                       className="flex h-20 w-20 shrink-0 cursor-help flex-col items-center justify-center rounded-full border border-amber-200 bg-amber-50 text-amber-700 ring-2 ring-amber-300 shadow-[0_0_20px_rgba(245,158,11,0.45)] transition hover:scale-105 hover:border-amber-300 hover:bg-amber-100 focus-visible:outline focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2"
                     >
                       <span className="font-black leading-none text-2xl tabular-nums">
-                        {cumulativeTransferKwh.toFixed(0)}
+                        {cumulativeStorageEffectiveKwh.toFixed(0)}
                       </span>
                       <span className="mt-0.5 text-[10px] font-bold uppercase tracking-wide">kWh</span>
                     </button>
@@ -752,9 +780,9 @@ export default function DeclarationPlanPage() {
                   sideOffset={8}
                   className="max-w-xs border border-slate-300 bg-slate-100 text-slate-900 shadow-xl text-balance"
                 >
-                  <p className="font-semibold">累積轉供量：{cumulativeTransferKwh.toFixed(1)} kWh</p>
+                  <p className="font-semibold">7天內儲能累積有效量：{cumulativeStorageEffectiveKwh.toFixed(1)} kWh</p>
                   <p className="mt-2 font-normal opacity-90">
-                    依當日每 15 分鐘合約轉供量加總換算（每筆 /4 小時）後得到，用於快速掌握今日已規劃轉供總量。
+                    系統只保留最近 7 天有效儲能量，超過 7 天自動歸零；放電時以最早存入的儲能量優先扣減（FIFO）。
                   </p>
                 </TooltipContent>
               </UiTooltip>
@@ -1065,6 +1093,15 @@ export default function DeclarationPlanPage() {
                 每 15 分鐘轉供量基準為 min(再生能源發電合計, 負載合計)，並於 11:00–13:00 另下調 20kW（最低不小於 0），讓中午綠電優先轉入儲能以支援晚間尖峰。藍線為再生能源合計、紅線為負載合計（皆為實線）；綠色虛線與半透明填滿為合約轉供量。
               </p>
             </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                className="bg-amber-600 text-white hover:bg-amber-700"
+                onClick={() => openModify('gen')}
+              >
+                調整
+              </Button>
+            </div>
           </div>
           <div className={chartWrap}>
             <ResponsiveContainer width="100%" height="100%">
@@ -1114,21 +1151,15 @@ export default function DeclarationPlanPage() {
                   type="linear"
                   dataKey="transfer"
                   hide={isSeriesHidden('transfer')}
-                  fill={TRANSFER_FILL_65}
-                  fillOpacity={1}
-                  stroke="none"
-                  baseValue={0}
-                  isAnimationActive={false}
-                />
-                <Line
-                  type="linear"
-                  dataKey="transfer"
-                  hide={isSeriesHidden('transfer')}
                   name="合約轉供量"
+                  fill={TRANSFER_GREEN}
+                  fillOpacity={0.65}
                   stroke={TRANSFER_GREEN}
                   strokeWidth={2.6}
-                  dot={false}
                   strokeDasharray="6 4"
+                  dot={false}
+                  baseValue={0}
+                  isAnimationActive={false}
                 />
               </LineChart>
             </ResponsiveContainer>
