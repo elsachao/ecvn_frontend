@@ -40,6 +40,7 @@ const LOAD_MIN_KW = 0;
 const LOAD_MAX_KW = 50;
 const BESS_MIN_KW = -50;
 const BESS_MAX_KW = 50;
+const MIDDAY_TRANSFER_REDUCTION_KW = 20;
 
 type ResourceCategory = 'gen' | 'load' | 'bess';
 type ResourceSeries = { id: string; data: number[] };
@@ -82,6 +83,16 @@ function getRangeByCategory(category: ResourceCategory): { min: number; max: num
 function isChargeWindow(index: number): boolean {
   const h = getHourByIndex(index);
   return h >= 10 && h < 14;
+}
+
+function isMiddayTransferReductionWindow(index: number): boolean {
+  const h = getHourByIndex(index);
+  return h >= 11 && h < 13;
+}
+
+function applyContractTransferStrategy(index: number, baseTransferKw: number): number {
+  if (!isMiddayTransferReductionWindow(index)) return baseTransferKw;
+  return Math.max(baseTransferKw - MIDDAY_TRANSFER_REDUCTION_KW, 0);
 }
 
 function isDischargeWindow(index: number): boolean {
@@ -276,7 +287,7 @@ export default function DeclarationPlanPage() {
     return INTERVAL_LABELS.map((time, i) => {
       const genVal = sumSeriesAt(store, 'gen', i);
       const loadVal = sumSeriesAt(store, 'load', i);
-      const contractQty = Math.min(genVal, loadVal);
+      const contractQty = applyContractTransferStrategy(i, Math.min(genVal, loadVal));
       return {
         time,
         gen: genVal,
@@ -322,7 +333,7 @@ export default function DeclarationPlanPage() {
     return INTERVAL_LABELS.map((time, i) => {
       const genSum = sumSeriesAt(store, 'gen', i);
       const loadSum = sumSeriesAt(store, 'load', i);
-      const transfer = Math.min(genSum, loadSum);
+      const transfer = applyContractTransferStrategy(i, Math.min(genSum, loadSum));
       return {
         time,
         transfer: Number(transfer.toFixed(3)),
@@ -506,15 +517,57 @@ export default function DeclarationPlanPage() {
   const socHasOrange = latestSocValues.some((soc) => (soc > 10 && soc <= 20) || (soc >= 80 && soc < 90));
   const lampConfig =
     unstoredSurplusKw > 3
-      ? { color: 'bg-red-500', text: 'text-red-700', label: '危險', icon: 'fas fa-triangle-exclamation' }
+      ? {
+          color: 'bg-red-500',
+          text: 'text-red-700',
+          ring: 'ring-red-300',
+          glow: 'shadow-[0_0_20px_rgba(239,68,68,0.55)]',
+          label: '危險',
+          icon: 'fas fa-triangle-exclamation',
+        }
       : unstoredSurplusKw > 1
-        ? { color: 'bg-orange-500', text: 'text-orange-700', label: '注意', icon: 'fas fa-circle-exclamation' }
-        : { color: 'bg-emerald-500', text: 'text-emerald-700', label: '正常', icon: 'fas fa-circle-check' };
+        ? {
+            color: 'bg-orange-500',
+            text: 'text-orange-700',
+            ring: 'ring-orange-300',
+            glow: 'shadow-[0_0_20px_rgba(249,115,22,0.5)]',
+            label: '注意',
+            icon: 'fas fa-circle-exclamation',
+          }
+        : {
+            color: 'bg-emerald-500',
+            text: 'text-emerald-700',
+            ring: 'ring-emerald-300',
+            glow: 'shadow-[0_0_20px_rgba(16,185,129,0.5)]',
+            label: '正常',
+            icon: 'fas fa-circle-check',
+          };
   const socLampConfig = socHasRed
-    ? { color: 'bg-red-500', text: 'text-red-700', label: '異常', icon: 'fas fa-triangle-exclamation' }
+    ? {
+        color: 'bg-red-500',
+        text: 'text-red-700',
+        ring: 'ring-red-300',
+        glow: 'shadow-[0_0_20px_rgba(239,68,68,0.55)]',
+        label: '異常',
+        icon: 'fas fa-triangle-exclamation',
+      }
     : socHasOrange
-      ? { color: 'bg-orange-500', text: 'text-orange-700', label: '警告', icon: 'fas fa-circle-exclamation' }
-      : { color: 'bg-emerald-500', text: 'text-emerald-700', label: '正常', icon: 'fas fa-circle-check' };
+      ? {
+          color: 'bg-orange-500',
+          text: 'text-orange-700',
+          ring: 'ring-orange-300',
+          glow: 'shadow-[0_0_20px_rgba(249,115,22,0.5)]',
+          label: '警告',
+          icon: 'fas fa-circle-exclamation',
+        }
+      : {
+          color: 'bg-emerald-500',
+          text: 'text-emerald-700',
+          ring: 'ring-emerald-300',
+          glow: 'shadow-[0_0_20px_rgba(16,185,129,0.5)]',
+          label: '正常',
+          icon: 'fas fa-circle-check',
+        };
 
   return (
     <div className="space-y-6 pb-10">
@@ -567,16 +620,19 @@ export default function DeclarationPlanPage() {
               </div>
             </div>
 
-            <div className="flex flex-row flex-wrap items-center gap-4 border-t border-slate-200 pt-4 sm:gap-5 lg:ml-auto lg:flex-nowrap lg:flex-col lg:items-end lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+            <div className="flex flex-row flex-wrap items-start gap-6 border-t border-slate-200 pt-4 sm:gap-8 lg:ml-auto lg:flex-nowrap lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
               <UiTooltip delayDuration={200}>
                 <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    aria-label={`餘電燈號：${lampConfig.label}，未儲存餘電 ${unstoredSurplusKw.toFixed(3)} kW`}
-                    className="flex h-10 w-10 shrink-0 cursor-help items-center justify-center rounded-full border border-slate-200 bg-white shadow-sm transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
-                  >
-                    <span className={`inline-flex h-4 w-4 rounded-full ${lampConfig.color}`} />
-                  </button>
+                  <div className="flex min-w-[96px] flex-col items-center gap-2">
+                    <p className="text-lg font-bold text-slate-900">餘電燈號</p>
+                    <button
+                      type="button"
+                      aria-label={`餘電燈號：${lampConfig.label}，未儲存餘電 ${unstoredSurplusKw.toFixed(3)} kW`}
+                      className={`flex h-14 w-14 shrink-0 cursor-help items-center justify-center rounded-full border border-slate-200 bg-white ring-2 transition hover:scale-105 hover:border-slate-300 hover:bg-slate-50 focus-visible:outline focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 ${lampConfig.ring} ${lampConfig.glow}`}
+                    >
+                      <span className={`inline-flex h-7 w-7 rounded-full ${lampConfig.color} shadow-[inset_0_0_6px_rgba(255,255,255,0.65)]`} />
+                    </button>
+                  </div>
                 </TooltipTrigger>
                 <TooltipContent side="left" sideOffset={8} className="max-w-xs text-balance">
                   <p className="font-semibold">
@@ -590,13 +646,18 @@ export default function DeclarationPlanPage() {
 
               <UiTooltip delayDuration={200}>
                 <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    aria-label={`儲能SOC燈號：${socLampConfig.label}`}
-                    className="flex h-10 w-10 shrink-0 cursor-help items-center justify-center rounded-full border border-slate-200 bg-white shadow-sm transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
-                  >
-                    <span className={`inline-flex h-4 w-4 rounded-full ${socLampConfig.color}`} />
-                  </button>
+                  <div className="flex min-w-[96px] flex-col items-center gap-2">
+                    <p className="text-lg font-bold text-slate-900">儲能SOC燈號</p>
+                    <button
+                      type="button"
+                      aria-label={`儲能SOC燈號：${socLampConfig.label}`}
+                      className={`flex h-14 w-14 shrink-0 cursor-help items-center justify-center rounded-full border border-slate-200 bg-white ring-2 transition hover:scale-105 hover:border-slate-300 hover:bg-slate-50 focus-visible:outline focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 ${socLampConfig.ring} ${socLampConfig.glow}`}
+                    >
+                      <span
+                        className={`inline-flex h-7 w-7 rounded-full ${socLampConfig.color} shadow-[inset_0_0_6px_rgba(255,255,255,0.65)]`}
+                      />
+                    </button>
+                  </div>
                 </TooltipTrigger>
                 <TooltipContent side="left" sideOffset={8} className="max-w-xs text-balance">
                   <p className="font-semibold">
@@ -611,13 +672,16 @@ export default function DeclarationPlanPage() {
 
               <UiTooltip delayDuration={200}>
                 <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    aria-label="儲能充放電時段說明"
-                    className="flex h-10 w-10 shrink-0 cursor-help items-center justify-center rounded-full border border-indigo-200 bg-indigo-50 text-indigo-700 shadow-sm transition hover:border-indigo-300 hover:bg-indigo-100 focus-visible:outline focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2"
-                  >
-                    <i className="fas fa-clock text-base" />
-                  </button>
+                  <div className="flex min-w-[96px] flex-col items-center gap-2">
+                    <p className="text-lg font-bold text-slate-900">儲能時段</p>
+                    <button
+                      type="button"
+                      aria-label="儲能充放電時段說明"
+                      className="flex h-14 w-14 shrink-0 cursor-help items-center justify-center rounded-full border border-indigo-200 bg-indigo-50 text-indigo-700 ring-2 ring-indigo-300 shadow-[0_0_20px_rgba(99,102,241,0.45)] transition hover:scale-105 hover:border-indigo-300 hover:bg-indigo-100 focus-visible:outline focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2"
+                    >
+                      <i className="fas fa-clock text-xl" />
+                    </button>
+                  </div>
                 </TooltipTrigger>
                 <TooltipContent side="left" sideOffset={8} className="max-w-xs text-balance">
                   <p className="font-semibold">
@@ -735,7 +799,7 @@ export default function DeclarationPlanPage() {
             <div>
               <h3 className="text-base font-bold text-slate-900">全資源覆蓋趨勢圖（kW）</h3>
               <p className="mt-1 text-xs text-slate-600">
-                「合約數量」曲線：走勢貼近負載，11:00–13:00 較低表示中午將多餘綠電轉入儲能／合約調度；夜尖峰再運用抵免電價。數值隨所選代理人之合約數量略為調整。
+                「合約數量」曲線：走勢貼近負載，並於 11:00–13:00 額外下調 20kW，表示中午優先將綠電轉入儲能，夜尖峰再運用抵免電價。數值隨所選代理人之合約數量略為調整。
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -923,7 +987,7 @@ export default function DeclarationPlanPage() {
             <div>
               <h3 className="text-base font-bold text-slate-900">合約轉供量趨勢（kW）</h3>
               <p className="mt-1 text-sm leading-relaxed text-slate-700">
-                每 15 分鐘轉供量＝min(再生能源發電合計, 負載合計)，故曲線跟隨 PV／發電形狀且不會高於當下負載。藍線為再生能源合計、紅線為負載合計（皆為實線）；綠色虛線與半透明填滿為合約轉供量。
+                每 15 分鐘轉供量基準為 min(再生能源發電合計, 負載合計)，並於 11:00–13:00 另下調 20kW（最低不小於 0），讓中午綠電優先轉入儲能以支援晚間尖峰。藍線為再生能源合計、紅線為負載合計（皆為實線）；綠色虛線與半透明填滿為合約轉供量。
               </p>
             </div>
           </div>
