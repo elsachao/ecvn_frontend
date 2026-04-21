@@ -125,7 +125,7 @@ export default function Sidebar() {
             return (
               <div
                 key={module.id}
-                className={`sidebar-module ${isSidebarOpen ? 'is-visible' : ''}`}
+                className={`sidebar-module sidebar-leaf ${isSidebarOpen ? 'is-visible' : ''}`}
                 style={{ animationDelay: `${moduleIndex * 35}ms` }}
               >
                 <a
@@ -134,7 +134,7 @@ export default function Sidebar() {
                     e.preventDefault();
                     goToRegistrationOverview();
                   }}
-                  className={`flex items-center px-3 py-3 rounded-lg transition-colors sidebar-subitem ${
+                  className={`flex items-center px-3 py-3 rounded-lg transition-colors ${
                     !isSidebarOpen ? 'justify-center' : ''
                   } ${
                     regActive

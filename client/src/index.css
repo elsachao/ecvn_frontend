@@ -151,6 +151,18 @@
   animation: sidebarModuleIn 1.38s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
+/* 收合時不再套用 .sidebar-open，需還原可見，否則第一層導覽會整列透明 */
+.sidebar-closed .sidebar-module {
+  opacity: 1;
+  transform: none;
+}
+
+/* 葉節點（無子選單）連結：勿套用僅在 submenu-open 內才顯示的 .sidebar-subitem 規則 */
+.sidebar-module.sidebar-leaf > a {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 .sidebar-submenu {
   overflow: hidden;
   transform-origin: top;
