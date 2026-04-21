@@ -521,116 +521,141 @@ export default function DeclarationPlanPage() {
       <section id="declaration-section-total" className="scroll-mt-28 space-y-6">
         <h2 className={sectionTitleClass}>3.1 總量</h2>
         <div className="rounded-2xl border border-slate-300 bg-white p-5 shadow-sm md:p-6">
-          <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:gap-8">
-            <div className="min-w-0 flex-1 space-y-2 xl:max-w-[min(100%,22rem)]">
-              <p className="text-xs font-bold tracking-wide text-slate-600">申報設定</p>
-              <h3 className="text-2xl font-bold text-slate-900">每日申報計劃</h3>
-              <p className="text-sm text-slate-600">請選擇代理人與日期，執行 15 分鐘區間申報。</p>
-
-              <button
-                type="button"
-                onClick={() => setAgentDetailExpanded((v) => !v)}
-                className="mt-3 inline-flex items-center gap-2 text-sm font-bold text-slate-900 transition hover:text-blue-700"
-              >
-                <span className="inline-flex h-5 w-5 items-center justify-center rounded border border-slate-300 bg-slate-50 text-xs leading-none">
-                  {agentDetailExpanded ? '−' : '+'}
-                </span>
-                詳細資訊
-              </button>
-
-              {agentDetailExpanded && (
-                <div className="mt-4 max-w-lg rounded-2xl border border-slate-200 bg-slate-50/80 p-5 text-sm">
-                  <dl className="space-y-5">
-                    <div>
-                      <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">代理人名稱</dt>
-                      <dd className="mt-1 font-bold text-slate-900">{selectedAgent.name}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">統編</dt>
-                      <dd className="mt-1 font-bold text-slate-900">{selectedAgent.taxId}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">合約代號</dt>
-                      <dd className="mt-1 space-y-3 font-semibold text-slate-900">
-                        {selectedAgent.contractCodes.map((code) => (
-                          <p key={code}>{code}</p>
-                        ))}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">合約數量</dt>
-                      <dd className="mt-1 font-bold text-slate-900">{selectedAgent.contractCodes.length}</dd>
-                    </div>
-                  </dl>
-                </div>
-              )}
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-6 xl:gap-10">
+            <div className="shrink-0 lg:max-w-[10rem] xl:max-w-[11rem]">
+              <h3 className="text-xl font-bold leading-tight text-blue-950 xl:text-2xl">每日申報計劃</h3>
             </div>
 
-            <div className="min-w-0 flex-1 space-y-2 border-t border-slate-200 pt-6 xl:border-t-0 xl:border-l xl:border-slate-200 xl:pl-8 xl:pt-0">
-              <UiTooltip delayDuration={250}>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    className={`w-full cursor-help rounded-md border border-transparent px-0 py-0.5 text-left text-sm font-bold transition hover:border-slate-200 hover:bg-slate-50/80 focus-visible:outline focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 ${lampConfig.text}`}
-                  >
-                    <span className={`mr-2 inline-flex h-3.5 w-3.5 rounded-full align-middle ${lampConfig.color}`} />
-                    餘電燈號：{lampConfig.label}（未儲存餘電 {unstoredSurplusKw.toFixed(3)} kW）
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="top" sideOffset={6} className="max-w-xs text-balance">
-                  註解：若未儲存餘電超過 1 kW-3kW 顯示橘燈；超過 3 kW 顯示紅燈；其餘顯示綠燈。
-                </TooltipContent>
-              </UiTooltip>
-
-              <UiTooltip delayDuration={250}>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    className={`w-full cursor-help rounded-md border border-transparent px-0 py-0.5 text-left text-sm font-bold transition hover:border-slate-200 hover:bg-slate-50/80 focus-visible:outline focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 ${socLampConfig.text}`}
-                  >
-                    <span className={`mr-2 inline-flex h-3.5 w-3.5 rounded-full align-middle ${socLampConfig.color}`} />
-                    儲能SOC燈號：{socLampConfig.label}（
-                    {socLampConfig.label === '正常' ? '沒有超過安全上下限' : '請檢查SOC區間'}）
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="top" sideOffset={6} className="max-w-xs text-balance">
-                  註解：若SOC介於0-20%或是80-100% 顯示橘燈(警告)；介於0-10%、90-100%顯示紅燈(異常)；其餘顯示綠燈正常。
-                </TooltipContent>
-              </UiTooltip>
-
-              <p className="text-sm font-bold text-indigo-700">
-                <i className="fas fa-clock mr-2" />
-                儲能只可以在10:00-14:00充電、放電只可以在16:00-20:00之間
-              </p>
-            </div>
-
-            <div className="flex w-full shrink-0 flex-col gap-4 border-t border-slate-200 pt-6 sm:flex-row xl:w-auto xl:min-w-[280px] xl:flex-col xl:border-l xl:border-t-0 xl:border-slate-200 xl:pl-8 xl:pt-0">
-              <div className="min-w-0 flex-1 sm:flex-1 xl:flex-none">
+            <div className="min-w-0 flex-1 space-y-4 lg:max-w-xl">
+              <div>
                 <label className="mb-2 block text-xs font-bold uppercase text-slate-700">代理人名稱</label>
-                <Select value={selectedAgent.id} onValueChange={setSelectedAgentId}>
-                  <SelectTrigger className="w-full border-slate-300 bg-white text-slate-900">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {AGENT_PROFILES.map((agent) => (
-                      <SelectItem key={agent.id} value={agent.id}>
-                        {agent.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                  <div className="min-w-0 flex-1">
+                    <Select value={selectedAgent.id} onValueChange={setSelectedAgentId}>
+                      <SelectTrigger className="w-full border-slate-300 bg-white text-slate-900">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {AGENT_PROFILES.map((agent) => (
+                          <SelectItem key={agent.id} value={agent.id}>
+                            {agent.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setAgentDetailExpanded((v) => !v)}
+                    className="inline-flex shrink-0 items-center gap-2 self-start text-sm font-bold text-slate-900 transition hover:text-blue-700 sm:self-auto"
+                  >
+                    <span className="inline-flex h-5 w-5 items-center justify-center rounded border border-slate-300 bg-slate-50 text-xs leading-none">
+                      {agentDetailExpanded ? '−' : '+'}
+                    </span>
+                    詳細資訊
+                  </button>
+                </div>
               </div>
-              <div className="min-w-0 flex-1 sm:flex-1 xl:flex-none">
+              <div>
                 <label className="mb-2 block text-xs font-bold uppercase text-slate-700">申報日期</label>
                 <Input
                   type="date"
                   value={selectedDate}
                   onChange={(e) => setSelectedDate(e.target.value)}
-                  className="w-full border-slate-300 bg-white text-slate-900"
+                  className="max-w-xs border-slate-300 bg-white text-slate-900"
                 />
               </div>
             </div>
+
+            <div className="flex flex-row flex-wrap items-center gap-4 border-t border-slate-200 pt-4 sm:gap-5 lg:ml-auto lg:flex-nowrap lg:flex-col lg:items-end lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+              <UiTooltip delayDuration={200}>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label={`餘電燈號：${lampConfig.label}，未儲存餘電 ${unstoredSurplusKw.toFixed(3)} kW`}
+                    className="flex h-10 w-10 shrink-0 cursor-help items-center justify-center rounded-full border border-slate-200 bg-white shadow-sm transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
+                  >
+                    <span className={`inline-flex h-4 w-4 rounded-full ${lampConfig.color}`} />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="left" sideOffset={8} className="max-w-xs text-balance">
+                  <p className="font-semibold">
+                    餘電燈號：{lampConfig.label}（未儲存餘電 {unstoredSurplusKw.toFixed(3)} kW）
+                  </p>
+                  <p className="mt-2 font-normal opacity-90">
+                    註解：若未儲存餘電超過 1 kW-3kW 顯示橘燈；超過 3 kW 顯示紅燈；其餘顯示綠燈。
+                  </p>
+                </TooltipContent>
+              </UiTooltip>
+
+              <UiTooltip delayDuration={200}>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label={`儲能SOC燈號：${socLampConfig.label}`}
+                    className="flex h-10 w-10 shrink-0 cursor-help items-center justify-center rounded-full border border-slate-200 bg-white shadow-sm transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
+                  >
+                    <span className={`inline-flex h-4 w-4 rounded-full ${socLampConfig.color}`} />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="left" sideOffset={8} className="max-w-xs text-balance">
+                  <p className="font-semibold">
+                    儲能SOC燈號：{socLampConfig.label}（
+                    {socLampConfig.label === '正常' ? '沒有超過安全上下限' : '請檢查SOC區間'}）
+                  </p>
+                  <p className="mt-2 font-normal opacity-90">
+                    註解：若SOC介於0-20%或是80-100% 顯示橘燈(警告)；介於0-10%、90-100%顯示紅燈(異常)；其餘顯示綠燈正常。
+                  </p>
+                </TooltipContent>
+              </UiTooltip>
+
+              <UiTooltip delayDuration={200}>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label="儲能充放電時段說明"
+                    className="flex h-10 w-10 shrink-0 cursor-help items-center justify-center rounded-full border border-indigo-200 bg-indigo-50 text-indigo-700 shadow-sm transition hover:border-indigo-300 hover:bg-indigo-100 focus-visible:outline focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2"
+                  >
+                    <i className="fas fa-clock text-base" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="left" sideOffset={8} className="max-w-xs text-balance">
+                  <p className="font-semibold">
+                    儲能只可以在10:00-14:00充電、放電只可以在16:00-20:00之間
+                  </p>
+                </TooltipContent>
+              </UiTooltip>
+            </div>
           </div>
+
+          {agentDetailExpanded && (
+            <div className="mt-6 border-t border-slate-200 pt-6">
+              <div className="max-w-lg rounded-2xl border border-slate-200 bg-slate-50/80 p-5 text-sm">
+                <dl className="space-y-5">
+                  <div>
+                    <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">代理人名稱</dt>
+                    <dd className="mt-1 font-bold text-slate-900">{selectedAgent.name}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">統編</dt>
+                    <dd className="mt-1 font-bold text-slate-900">{selectedAgent.taxId}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">合約代號</dt>
+                    <dd className="mt-1 space-y-3 font-semibold text-slate-900">
+                      {selectedAgent.contractCodes.map((code) => (
+                        <p key={code}>{code}</p>
+                      ))}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">合約數量</dt>
+                    <dd className="mt-1 font-bold text-slate-900">{selectedAgent.contractCodes.length}</dd>
+                  </div>
+                </dl>
+              </div>
+            </div>
+          )}
         </div>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           {SUMMARY_CARD_STATS.map((card) => (
@@ -651,63 +676,59 @@ export default function DeclarationPlanPage() {
                   />
                 </div>
               </div>
+              <button
+                type="button"
+                onClick={() => setResourceExpanded((prev) => !prev)}
+                className="mx-auto mt-4 inline-flex h-7 min-w-7 items-center justify-center rounded-full border border-slate-300 bg-white px-2 text-xs font-bold text-slate-700 shadow-sm transition hover:border-slate-400 hover:bg-slate-50"
+                aria-label={resourceExpanded ? '收合資源明細' : '展開資源明細'}
+              >
+                <i className={`fas ${resourceExpanded ? 'fa-chevron-up' : 'fa-chevron-down'}`} />
+              </button>
             </div>
           ))}
         </div>
 
-        <div className="rounded-2xl border border-slate-300 bg-white p-5 shadow-sm">
-          <Button
-            type="button"
-            variant="outline"
-            className="border-slate-400 text-slate-800 hover:bg-slate-100"
-            onClick={() => setResourceExpanded((prev) => !prev)}
-          >
-            <i className={`fas ${resourceExpanded ? 'fa-minus' : 'fa-plus'} mr-2`} />
-            各資源名稱
-          </Button>
-
-          {resourceExpanded && (
-            <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                <p className="mb-2 text-sm font-bold text-sky-700">發電資源（G）</p>
-                {genResourceTotals.map((item) => (
-                  <p key={item.id} className="text-sm text-slate-800">
-                    {item.id} 合計 {item.total.toFixed(1)} kW
-                  </p>
-                ))}
-              </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                <p className="mb-2 text-sm font-bold text-rose-700">用電資源（L）</p>
-                {loadResourceTotals.map((item) => (
-                  <p key={item.id} className="text-sm text-slate-800">
-                    {item.id} 合計 {item.total.toFixed(1)} kW
-                  </p>
-                ))}
-              </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                <p className="mb-2 text-sm font-bold text-indigo-700">儲能資源（BESS）</p>
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <div className="rounded-lg border border-indigo-200 bg-white p-3">
-                    <p className="mb-1 text-xs font-bold uppercase text-indigo-700">充電</p>
-                    {bessResourceTotals.map((item) => (
-                      <p key={`charge-${item.id}`} className="text-sm text-slate-800">
-                        充電{item.id} 合計 {item.charge.toFixed(1)} kW
-                      </p>
-                    ))}
-                  </div>
-                  <div className="rounded-lg border border-violet-200 bg-white p-3">
-                    <p className="mb-1 text-xs font-bold uppercase text-violet-700">放電</p>
-                    {bessResourceTotals.map((item) => (
-                      <p key={`discharge-${item.id}`} className="text-sm text-slate-800">
-                        放電{item.id} 合計 {item.discharge.toFixed(1)} kW
-                      </p>
-                    ))}
-                  </div>
+        {resourceExpanded && (
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="mb-2 text-sm font-bold text-sky-700">發電資源（G）</p>
+              {genResourceTotals.map((item) => (
+                <p key={item.id} className="text-sm text-slate-800">
+                  {item.id} 合計 {item.total.toFixed(1)} kW
+                </p>
+              ))}
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="mb-2 text-sm font-bold text-rose-700">用電資源（L）</p>
+              {loadResourceTotals.map((item) => (
+                <p key={item.id} className="text-sm text-slate-800">
+                  {item.id} 合計 {item.total.toFixed(1)} kW
+                </p>
+              ))}
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="mb-2 text-sm font-bold text-indigo-700">儲能資源（BESS）</p>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div className="rounded-lg border border-indigo-200 bg-white p-3">
+                  <p className="mb-1 text-xs font-bold uppercase text-indigo-700">充電</p>
+                  {bessResourceTotals.map((item) => (
+                    <p key={`charge-${item.id}`} className="text-sm text-slate-800">
+                      充電{item.id} 合計 {item.charge.toFixed(1)} kW
+                    </p>
+                  ))}
+                </div>
+                <div className="rounded-lg border border-violet-200 bg-white p-3">
+                  <p className="mb-1 text-xs font-bold uppercase text-violet-700">放電</p>
+                  {bessResourceTotals.map((item) => (
+                    <p key={`discharge-${item.id}`} className="text-sm text-slate-800">
+                      放電{item.id} 合計 {item.discharge.toFixed(1)} kW
+                    </p>
+                  ))}
                 </div>
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         <div className="rounded-2xl border border-slate-300 bg-white p-6 shadow-sm md:p-8">
           <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -902,7 +923,7 @@ export default function DeclarationPlanPage() {
             <div>
               <h3 className="text-base font-bold text-slate-900">合約轉供量趨勢（kW）</h3>
               <p className="mt-1 text-sm leading-relaxed text-slate-700">
-                每 15 分鐘轉供量＝min(再生能源發電合計, 負載合計)，故曲線跟隨 PV／發電形狀且不會高於當下負載。橘線為轉供量；虛線為發電合計與負載合計供對照。
+                每 15 分鐘轉供量＝min(再生能源發電合計, 負載合計)，故曲線跟隨 PV／發電形狀且不會高於當下負載。藍線為再生能源合計、紅線為負載合計（皆為實線）；綠色虛線與半透明填滿為合約轉供量。
               </p>
             </div>
           </div>
@@ -940,7 +961,6 @@ export default function DeclarationPlanPage() {
                   stroke="#2563eb"
                   strokeWidth={2.2}
                   dot={false}
-                  strokeDasharray="6 4"
                 />
                 <Line
                   type="monotone"
@@ -950,7 +970,6 @@ export default function DeclarationPlanPage() {
                   stroke="#dc2626"
                   strokeWidth={2.2}
                   dot={false}
-                  strokeDasharray="6 4"
                 />
                 <Line
                   type="monotone"
