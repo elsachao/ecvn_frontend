@@ -60,7 +60,7 @@ export default function RegistrationOverview() {
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 md:p-8">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-8">
           <div>
-            <h3 className="text-2xl font-black text-slate-800">1.1 註冊申請總覽</h3>
+            <h3 className="text-2xl font-black text-slate-800">註冊申請總覽</h3>
             <p className="text-slate-500 mt-2">先從總覽管理申請單，再按「新增註冊」進入 1-2-3 流程。</p>
           </div>
           <button

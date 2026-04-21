@@ -61,7 +61,7 @@ export default function Header() {
         : currentView === 'declaration-plan'
           ? '3. 申報計畫'
           : registrationScreen === 'overview'
-            ? '1.1 註冊申請總覽'
+            ? '註冊申請總覽'
             : getStepTitle(step);
 
   return (

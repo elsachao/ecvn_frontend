@@ -8,6 +8,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Tooltip as UiTooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Slider } from '@/components/ui/slider';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -513,102 +518,119 @@ export default function DeclarationPlanPage() {
 
   return (
     <div className="space-y-6 pb-10">
-      <section className="rounded-2xl border border-slate-300 bg-white p-6 shadow-sm md:p-8">
-        <div className="flex flex-col gap-8 xl:flex-row xl:items-start xl:justify-between">
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-bold tracking-wide text-slate-600">申報設定</p>
-            <h2 className="mt-2 text-3xl font-bold text-slate-900">每日申報計劃</h2>
-            <p className="mt-2 text-sm text-slate-600">請選擇代理人與日期，執行 15 分鐘區間申報。</p>
-
-            <button
-              type="button"
-              onClick={() => setAgentDetailExpanded((v) => !v)}
-              className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-slate-900 hover:text-blue-700 transition"
-            >
-              <span className="inline-flex h-5 w-5 items-center justify-center rounded border border-slate-300 bg-slate-50 text-xs leading-none">
-                {agentDetailExpanded ? '−' : '+'}
-              </span>
-              詳細資訊
-            </button>
-
-            {agentDetailExpanded && (
-              <div className="mt-4 max-w-lg rounded-2xl border border-slate-200 bg-slate-50/80 p-5 text-sm">
-                <dl className="space-y-5">
-                  <div>
-                    <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">代理人名稱</dt>
-                    <dd className="mt-1 font-bold text-slate-900">{selectedAgent.name}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">統編</dt>
-                    <dd className="mt-1 font-bold text-slate-900">{selectedAgent.taxId}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">合約代號</dt>
-                    <dd className="mt-1 space-y-3 font-semibold text-slate-900">
-                      {selectedAgent.contractCodes.map((code) => (
-                        <p key={code}>{code}</p>
-                      ))}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">合約數量</dt>
-                    <dd className="mt-1 font-bold text-slate-900">{selectedAgent.contractCodes.length}</dd>
-                  </div>
-                </dl>
-              </div>
-            )}
-          </div>
-
-          <div className="flex w-full shrink-0 flex-col gap-4 sm:flex-row xl:w-auto xl:min-w-[320px] xl:flex-col xl:gap-4">
-            <div className="min-w-0 flex-1 sm:flex-1 xl:flex-none">
-              <label className="mb-2 block text-xs font-bold uppercase text-slate-700">代理人名稱</label>
-              <Select value={selectedAgent.id} onValueChange={setSelectedAgentId}>
-                <SelectTrigger className="w-full border-slate-300 bg-white text-slate-900">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {AGENT_PROFILES.map((agent) => (
-                    <SelectItem key={agent.id} value={agent.id}>
-                      {agent.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="min-w-0 flex-1 sm:flex-1 xl:flex-none">
-              <label className="mb-2 block text-xs font-bold uppercase text-slate-700">申報日期</label>
-              <Input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="w-full border-slate-300 bg-white text-slate-900"
-              />
-            </div>
-          </div>
-        </div>
-      </section>
-
       <section id="declaration-section-total" className="scroll-mt-28 space-y-6">
         <h2 className={sectionTitleClass}>3.1 總量</h2>
-        <div className="rounded-2xl border border-slate-300 bg-white p-5 shadow-sm space-y-2">
-          <p className={`text-sm font-bold ${lampConfig.text}`}>
-            <span className={`mr-2 inline-flex h-3.5 w-3.5 rounded-full ${lampConfig.color}`} />
-            餘電燈號：{lampConfig.label}（未儲存餘電 {unstoredSurplusKw.toFixed(3)} kW）
-          </p>
-          <p className="text-xs text-slate-700">
-            註解：若未儲存餘電超過 1 kW-3kW 顯示橘燈；超過 3 kW 顯示紅燈；其餘顯示綠燈。
-          </p>
-          <p className={`text-sm font-bold ${socLampConfig.text}`}>
-            <span className={`mr-2 inline-flex h-3.5 w-3.5 rounded-full ${socLampConfig.color}`} />
-            儲能SOC燈號：{socLampConfig.label} ({socLampConfig.label === '正常' ? '沒有超過安全上下限' : '請檢查SOC區間'})
-          </p>
-          <p className="text-xs text-slate-700">
-            註解：若SOC介於0-20%或是80-100% 顯示橘燈(警告)；介於0-10%、90-100%顯示紅燈(異常)；其餘顯示綠燈正常。
-          </p>
-          <p className="text-sm font-bold text-indigo-700">
-            <i className="fas fa-clock mr-2" />
-            儲能只可以在10:00-14:00充電、放電只可以在16:00-20:00之間
-          </p>
+        <div className="rounded-2xl border border-slate-300 bg-white p-5 shadow-sm md:p-6">
+          <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:gap-8">
+            <div className="min-w-0 flex-1 space-y-2 xl:max-w-[min(100%,22rem)]">
+              <p className="text-xs font-bold tracking-wide text-slate-600">申報設定</p>
+              <h3 className="text-2xl font-bold text-slate-900">每日申報計劃</h3>
+              <p className="text-sm text-slate-600">請選擇代理人與日期，執行 15 分鐘區間申報。</p>
+
+              <button
+                type="button"
+                onClick={() => setAgentDetailExpanded((v) => !v)}
+                className="mt-3 inline-flex items-center gap-2 text-sm font-bold text-slate-900 transition hover:text-blue-700"
+              >
+                <span className="inline-flex h-5 w-5 items-center justify-center rounded border border-slate-300 bg-slate-50 text-xs leading-none">
+                  {agentDetailExpanded ? '−' : '+'}
+                </span>
+                詳細資訊
+              </button>
+
+              {agentDetailExpanded && (
+                <div className="mt-4 max-w-lg rounded-2xl border border-slate-200 bg-slate-50/80 p-5 text-sm">
+                  <dl className="space-y-5">
+                    <div>
+                      <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">代理人名稱</dt>
+                      <dd className="mt-1 font-bold text-slate-900">{selectedAgent.name}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">統編</dt>
+                      <dd className="mt-1 font-bold text-slate-900">{selectedAgent.taxId}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">合約代號</dt>
+                      <dd className="mt-1 space-y-3 font-semibold text-slate-900">
+                        {selectedAgent.contractCodes.map((code) => (
+                          <p key={code}>{code}</p>
+                        ))}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">合約數量</dt>
+                      <dd className="mt-1 font-bold text-slate-900">{selectedAgent.contractCodes.length}</dd>
+                    </div>
+                  </dl>
+                </div>
+              )}
+            </div>
+
+            <div className="min-w-0 flex-1 space-y-2 border-t border-slate-200 pt-6 xl:border-t-0 xl:border-l xl:border-slate-200 xl:pl-8 xl:pt-0">
+              <UiTooltip delayDuration={250}>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className={`w-full cursor-help rounded-md border border-transparent px-0 py-0.5 text-left text-sm font-bold transition hover:border-slate-200 hover:bg-slate-50/80 focus-visible:outline focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 ${lampConfig.text}`}
+                  >
+                    <span className={`mr-2 inline-flex h-3.5 w-3.5 rounded-full align-middle ${lampConfig.color}`} />
+                    餘電燈號：{lampConfig.label}（未儲存餘電 {unstoredSurplusKw.toFixed(3)} kW）
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top" sideOffset={6} className="max-w-xs text-balance">
+                  註解：若未儲存餘電超過 1 kW-3kW 顯示橘燈；超過 3 kW 顯示紅燈；其餘顯示綠燈。
+                </TooltipContent>
+              </UiTooltip>
+
+              <UiTooltip delayDuration={250}>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className={`w-full cursor-help rounded-md border border-transparent px-0 py-0.5 text-left text-sm font-bold transition hover:border-slate-200 hover:bg-slate-50/80 focus-visible:outline focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 ${socLampConfig.text}`}
+                  >
+                    <span className={`mr-2 inline-flex h-3.5 w-3.5 rounded-full align-middle ${socLampConfig.color}`} />
+                    儲能SOC燈號：{socLampConfig.label}（
+                    {socLampConfig.label === '正常' ? '沒有超過安全上下限' : '請檢查SOC區間'}）
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top" sideOffset={6} className="max-w-xs text-balance">
+                  註解：若SOC介於0-20%或是80-100% 顯示橘燈(警告)；介於0-10%、90-100%顯示紅燈(異常)；其餘顯示綠燈正常。
+                </TooltipContent>
+              </UiTooltip>
+
+              <p className="text-sm font-bold text-indigo-700">
+                <i className="fas fa-clock mr-2" />
+                儲能只可以在10:00-14:00充電、放電只可以在16:00-20:00之間
+              </p>
+            </div>
+
+            <div className="flex w-full shrink-0 flex-col gap-4 border-t border-slate-200 pt-6 sm:flex-row xl:w-auto xl:min-w-[280px] xl:flex-col xl:border-l xl:border-t-0 xl:border-slate-200 xl:pl-8 xl:pt-0">
+              <div className="min-w-0 flex-1 sm:flex-1 xl:flex-none">
+                <label className="mb-2 block text-xs font-bold uppercase text-slate-700">代理人名稱</label>
+                <Select value={selectedAgent.id} onValueChange={setSelectedAgentId}>
+                  <SelectTrigger className="w-full border-slate-300 bg-white text-slate-900">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {AGENT_PROFILES.map((agent) => (
+                      <SelectItem key={agent.id} value={agent.id}>
+                        {agent.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="min-w-0 flex-1 sm:flex-1 xl:flex-none">
+                <label className="mb-2 block text-xs font-bold uppercase text-slate-700">申報日期</label>
+                <Input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="w-full border-slate-300 bg-white text-slate-900"
+                />
+              </div>
+            </div>
+          </div>
         </div>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           {SUMMARY_CARD_STATS.map((card) => (
