@@ -402,15 +402,15 @@ export default function DeclarationPlanPage() {
   const baseChartOption = useMemo(
     () => ({
       animation: false,
-      grid: { top: 20, right: 12, bottom: 36, left: 44 },
+      grid: { top: 28, right: 16, bottom: 72, left: 52, containLabel: true },
       legend: {
-        bottom: 4,
+        bottom: 14,
         textStyle: { color: '#0f172a', fontSize: 11 },
       },
       tooltip: { trigger: 'axis' as const, axisPointer: { type: 'line' as const } },
       xAxis: {
         type: 'category' as const,
-        axisLabel: { color: '#0f172a', fontSize: 10, interval: 7 },
+        axisLabel: { color: '#0f172a', fontSize: 10, interval: 7, margin: 14, hideOverlap: true },
         axisLine: { lineStyle: { color: '#64748b' } },
         splitLine: { show: false },
       },
@@ -696,7 +696,7 @@ export default function DeclarationPlanPage() {
     setModifyOpen(false);
   };
 
-  const chartWrap = 'h-[320px] w-full min-h-[280px]';
+  const chartWrap = 'h-[360px] w-full min-h-[320px]';
   const sectionTitleClass = 'border-b border-slate-300 pb-2 text-lg font-bold text-slate-900';
   const modifyRange = getRangeByCategory(modifyCategory);
 
