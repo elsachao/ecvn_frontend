@@ -767,7 +767,6 @@ export default function DeclarationPlanPage() {
           ring: 'ring-red-300',
           glow: 'shadow-[0_0_20px_rgba(239,68,68,0.55)]',
           label: '危險',
-          icon: 'fas fa-triangle-exclamation',
         }
       : unstoredSurplusKw > 1
         ? {
@@ -776,7 +775,6 @@ export default function DeclarationPlanPage() {
             ring: 'ring-orange-300',
             glow: 'shadow-[0_0_20px_rgba(249,115,22,0.5)]',
             label: '注意',
-            icon: 'fas fa-circle-exclamation',
           }
         : {
             color: 'bg-emerald-500',
@@ -784,7 +782,6 @@ export default function DeclarationPlanPage() {
             ring: 'ring-emerald-300',
             glow: 'shadow-[0_0_20px_rgba(16,185,129,0.5)]',
             label: '正常',
-            icon: 'fas fa-circle-check',
           };
   const socLampConfig = socHasRed
     ? {
@@ -793,7 +790,6 @@ export default function DeclarationPlanPage() {
         ring: 'ring-red-300',
         glow: 'shadow-[0_0_20px_rgba(239,68,68,0.55)]',
         label: '異常',
-        icon: 'fas fa-triangle-exclamation',
       }
     : socHasOrange
       ? {
@@ -802,7 +798,6 @@ export default function DeclarationPlanPage() {
           ring: 'ring-orange-300',
           glow: 'shadow-[0_0_20px_rgba(249,115,22,0.5)]',
           label: '警告',
-          icon: 'fas fa-circle-exclamation',
         }
       : {
           color: 'bg-emerald-500',
@@ -810,7 +805,6 @@ export default function DeclarationPlanPage() {
           ring: 'ring-emerald-300',
           glow: 'shadow-[0_0_20px_rgba(16,185,129,0.5)]',
           label: '正常',
-          icon: 'fas fa-circle-check',
         };
 
   return (
@@ -939,9 +933,15 @@ export default function DeclarationPlanPage() {
                   <button
                     type="button"
                     aria-label={`餘電燈號：${lampConfig.label}，未儲存餘電 ${unstoredSurplusKw.toFixed(3)} kW`}
-                    className={`flex h-14 w-14 shrink-0 cursor-help items-center justify-center rounded-full border border-slate-200 bg-white ring-2 transition hover:scale-105 hover:border-slate-300 hover:bg-slate-50 focus-visible:outline focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 ${lampConfig.ring} ${lampConfig.glow}`}
+                    className={`flex h-20 w-20 shrink-0 cursor-help items-center justify-center rounded-full border border-slate-200 bg-white ring-2 transition hover:scale-105 hover:border-slate-300 hover:bg-slate-50 focus-visible:outline focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 ${lampConfig.ring} ${lampConfig.glow}`}
                   >
-                    <span className={`inline-flex h-7 w-7 rounded-full ${lampConfig.color} shadow-[inset_0_0_6px_rgba(255,255,255,0.65)]`} />
+                    <span className="relative inline-flex h-10 w-10 items-center justify-center rounded-full bg-slate-900/10 p-[3px] shadow-[inset_0_2px_4px_rgba(15,23,42,0.18)]">
+                      <span
+                        className={`relative inline-flex h-full w-full rounded-full ${lampConfig.color} shadow-[0_0_16px_rgba(255,255,255,0.2),inset_0_-3px_8px_rgba(0,0,0,0.24)]`}
+                      >
+                        <span className="absolute left-1 top-1 h-2 w-2 rounded-full bg-white/70 blur-[0.5px]" />
+                      </span>
+                    </span>
                   </button>
                 </div>
               </TooltipTrigger>
@@ -966,11 +966,15 @@ export default function DeclarationPlanPage() {
                   <button
                     type="button"
                     aria-label={`儲能SOC燈號：${socLampConfig.label}`}
-                    className={`flex h-14 w-14 shrink-0 cursor-help items-center justify-center rounded-full border border-slate-200 bg-white ring-2 transition hover:scale-105 hover:border-slate-300 hover:bg-slate-50 focus-visible:outline focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 ${socLampConfig.ring} ${socLampConfig.glow}`}
+                    className={`flex h-20 w-20 shrink-0 cursor-help items-center justify-center rounded-full border border-slate-200 bg-white ring-2 transition hover:scale-105 hover:border-slate-300 hover:bg-slate-50 focus-visible:outline focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 ${socLampConfig.ring} ${socLampConfig.glow}`}
                   >
-                    <span
-                      className={`inline-flex h-7 w-7 rounded-full ${socLampConfig.color} shadow-[inset_0_0_6px_rgba(255,255,255,0.65)]`}
-                    />
+                    <span className="relative inline-flex h-10 w-10 items-center justify-center rounded-full bg-slate-900/10 p-[3px] shadow-[inset_0_2px_4px_rgba(15,23,42,0.18)]">
+                      <span
+                        className={`relative inline-flex h-full w-full rounded-full ${socLampConfig.color} shadow-[0_0_16px_rgba(255,255,255,0.2),inset_0_-3px_8px_rgba(0,0,0,0.24)]`}
+                      >
+                        <span className="absolute left-1 top-1 h-2 w-2 rounded-full bg-white/70 blur-[0.5px]" />
+                      </span>
+                    </span>
                   </button>
                 </div>
               </TooltipTrigger>
@@ -996,9 +1000,9 @@ export default function DeclarationPlanPage() {
                   <button
                     type="button"
                     aria-label="儲能充放電時段說明"
-                    className="flex h-14 w-14 shrink-0 cursor-help items-center justify-center rounded-full border border-indigo-200 bg-indigo-50 text-indigo-700 ring-2 ring-indigo-300 shadow-[0_0_20px_rgba(99,102,241,0.45)] transition hover:scale-105 hover:border-indigo-300 hover:bg-indigo-100 focus-visible:outline focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2"
+                    className="flex h-20 w-20 shrink-0 cursor-help items-center justify-center rounded-full border border-indigo-200 bg-indigo-50 text-indigo-700 ring-2 ring-indigo-300 shadow-[0_0_20px_rgba(99,102,241,0.45)] transition hover:scale-105 hover:border-indigo-300 hover:bg-indigo-100 focus-visible:outline focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2"
                   >
-                    <i className="fas fa-clock text-xl" />
+                    <i className="fas fa-clock text-2xl" />
                   </button>
                 </div>
               </TooltipTrigger>
