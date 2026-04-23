@@ -1573,8 +1573,13 @@ export default function DeclarationPlanPage() {
                 maxWidth: '100%',
               }}
             >
-              {/* 內頁往上貼齊鉸鏈，避免中間斷層 */}
-              <div className="absolute bottom-0 left-0 right-0 top-[36%] z-10 overflow-hidden rounded-b-2xl">
+              {/* 依翻頁狀態調整內頁鉸鏈高度，避免封面與內頁中間斷層 */}
+              <div
+                className={cn(
+                  'absolute bottom-0 left-0 right-0 z-10 overflow-hidden rounded-b-2xl transition-all duration-500',
+                  storageLedgerFlipped ? 'top-[24%] sm:top-[26%] -translate-y-0.5' : 'top-[36%]'
+                )}
+              >
                 <PassbookWithPageEdge showEdge={storageLedgerFlipped}>
                   <div
                     className={cn(
