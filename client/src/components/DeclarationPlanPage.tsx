@@ -455,17 +455,23 @@ export default function DeclarationPlanPage() {
     const dayStart = Number.isNaN(baseDate.getTime()) ? new Date() : baseDate;
     const chargeKwhToday = summaryRows.reduce((acc, row) => acc + Math.max(row.bess / 4, 0), 0);
     const dischargeKwhToday = summaryRows.reduce((acc, row) => acc + Math.max(-(row.bess / 4), 0), 0);
-    const todayNetKwh = chargeKwhToday - dischargeKwhToday;
 
     const rows = Array.from({ length: 7 }, (_, idx) => {
       const dayOffset = 6 - idx;
       const date = new Date(dayStart);
       date.setDate(dayStart.getDate() - dayOffset);
-      const dayFactor = 0.72 + idx * 0.06;
-      const dayNetKwh = Number((todayNetKwh * dayFactor + Math.sin(idx * 1.7) * 3.2).toFixed(3));
+      const dayFactor = 0.74 + idx * 0.05;
+      const chargeKwh = Math.max(0, Number((chargeKwhToday * dayFactor + Math.cos(idx * 1.15) * 1.8).toFixed(3)));
+      const dischargeKwh = Math.max(
+        0,
+        Number((dischargeKwhToday * (0.68 + idx * 0.045) + Math.sin(idx * 1.25) * 1.4).toFixed(3))
+      );
+      const netKwh = Number((chargeKwh - dischargeKwh).toFixed(3));
       return {
         dateLabel: date.toISOString().slice(0, 10),
-        netMwh: Number((dayNetKwh / 1000).toFixed(3)),
+        chargeMwh: Number((chargeKwh / 1000).toFixed(3)),
+        dischargeMwh: Number((dischargeKwh / 1000).toFixed(3)),
+        netMwh: Number((netKwh / 1000).toFixed(3)),
         status: dayOffset === 6 ? '今日過期 EXPIRED' : `剩餘 ${6 - dayOffset} 天`,
         expired: dayOffset === 6,
       };
@@ -491,13 +497,19 @@ export default function DeclarationPlanPage() {
     }
     return eachDayInclusive(from, to).map((d, idx) => {
       const t = d.getTime();
-      const netMwh = Number(
-        ((Math.sin(t / 8e7) * 0.35 + 0.85 + (idx % 7) * 0.03) * 0.42).toFixed(3)
+      const chargeMwh = Number(
+        ((Math.sin(t / 8e7) * 0.32 + 0.95 + (idx % 7) * 0.035) * 0.46).toFixed(3)
       );
+      const dischargeMwh = Number(
+        ((Math.cos(t / 9e7) * 0.27 + 0.78 + (idx % 5) * 0.03) * 0.38).toFixed(3)
+      );
+      const netMwh = Number((chargeMwh - dischargeMwh).toFixed(3));
       const hasExpired = (t / 86400000 + idx) % 13 === 0 && netMwh > 0.06;
       const expiredMwh = hasExpired ? Number((netMwh * 0.2 + 0.015).toFixed(3)) : 0;
       return {
         dateLabel: d.toISOString().slice(0, 10),
+        chargeMwh,
+        dischargeMwh,
         netMwh,
         expiredMwh,
       };
@@ -1627,17 +1639,21 @@ export default function DeclarationPlanPage() {
                             </p>
                           ) : (
                             <>
-                              <div className="sticky top-0 z-[1] mb-2 grid grid-cols-3 border-b border-slate-300 bg-[#fffdf5] pb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                              <div className="sticky top-0 z-[1] mb-2 grid grid-cols-5 border-b border-slate-300 bg-[#fffdf5] pb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
                                 <span>時間 (Date)</span>
+                                <span className="text-center">充電量 (MWh)</span>
+                                <span className="text-center">放電量 (MWh)</span>
                                 <span className="text-center">電能累積量 (MWh)</span>
                                 <span className="text-right">狀態 (Status)</span>
                               </div>
                               {storageHistoryRows.map((row) => (
                                 <div
                                   key={row.dateLabel}
-                                  className="grid grid-cols-3 rounded-lg bg-slate-50 px-2 py-2 text-slate-800"
+                                  className="grid grid-cols-5 rounded-lg bg-slate-50 px-2 py-2 text-slate-800"
                                 >
                                   <span>{row.dateLabel}</span>
+                                  <span className="text-center">{row.chargeMwh.toFixed(3)} MWh</span>
+                                  <span className="text-center">{row.dischargeMwh.toFixed(3)} MWh</span>
                                   <span className="text-center">
                                     {row.netMwh >= 0 ? '+' : ''}
                                     {row.netMwh.toFixed(3)} MWh
@@ -1666,8 +1682,10 @@ export default function DeclarationPlanPage() {
                       </>
                     ) : (
                       <>
-                        <div className="mb-3 shrink-0 grid grid-cols-3 border-b border-slate-300 pb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                        <div className="mb-3 shrink-0 grid grid-cols-5 border-b border-slate-300 pb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
                           <span>時間 (Date)</span>
+                          <span className="text-center">充電量 (MWh)</span>
+                          <span className="text-center">放電量 (MWh)</span>
                           <span className="text-center">電能累積 (MWh)</span>
                           <span className="text-right">狀態 (Status)</span>
                         </div>
@@ -1675,13 +1693,15 @@ export default function DeclarationPlanPage() {
                           {storageLedgerRows.map((row) => (
                             <div
                               key={row.dateLabel}
-                              className={`grid grid-cols-3 rounded-lg px-2 py-2 ${
+                              className={`grid grid-cols-5 rounded-lg px-2 py-2 ${
                                 row.expired
                                   ? 'animate-pulse bg-red-50 text-base font-black text-red-900'
                                   : 'bg-slate-50 text-slate-700'
                               }`}
                             >
                               <span>{row.dateLabel}</span>
+                              <span className="text-center">{row.chargeMwh.toFixed(3)} MWh</span>
+                              <span className="text-center">{row.dischargeMwh.toFixed(3)} MWh</span>
                               <span className="text-center">
                                 {row.netMwh >= 0 ? '+' : ''}
                                 {row.netMwh.toFixed(3)} MWh
