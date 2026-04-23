@@ -1582,6 +1582,23 @@ export default function DeclarationPlanPage() {
                         'border-[#dccfb5] shadow-[0_12px_35px_rgba(15,23,42,0.16),inset_0_4px_0_rgba(255,255,255,0.65),inset_0_-6px_16px_rgba(70,55,35,0.07),inset_-6px_0_16px_rgba(85,65,40,0.1),inset_0_6px_16px_rgba(85,65,40,0.07)]'
                     )}
                   >
+                    {storageLedgerFlipped && (
+                      <div className="mb-3 shrink-0 border-b border-amber-200/70 bg-gradient-to-b from-[#faf7ef] to-[#fffdf5] px-1 pb-3 pt-1 text-center shadow-[inset_0_-1px_0_rgba(0,0,0,0.05)]">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setStorageLedgerFlipped(false);
+                            setStorageLedgerHistoryOpen(false);
+                            setHistoryQueryStart('');
+                            setHistoryQueryEnd('');
+                          }}
+                          className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white/95 px-4 py-2 text-xs font-black uppercase tracking-widest text-slate-600 shadow-sm transition hover:border-slate-400 hover:text-blue-600"
+                        >
+                          <i className="fas fa-chevron-up" />
+                          收回封面 CLOSE
+                        </button>
+                      </div>
+                    )}
                     {storageLedgerHistoryOpen ? (
                       <>
                         <div className="mb-3 shrink-0 space-y-3 border-b border-slate-200 pb-3">
@@ -1722,9 +1739,12 @@ export default function DeclarationPlanPage() {
               </div>
 
               <div
-                className={`absolute inset-0 z-20 rounded-2xl [transform-origin:top] [transform-style:preserve-3d] transition-transform duration-1000 ${
-                  storageLedgerFlipped ? '[transform:rotateX(155deg)]' : ''
-                }`}
+                className={cn(
+                  'absolute inset-0 z-20 rounded-2xl [transform-origin:top] [transform-style:preserve-3d] transition-transform duration-1000',
+                  storageLedgerFlipped
+                    ? 'pointer-events-none [transform:rotateX(155deg)]'
+                    : '[transform:rotateX(0deg)]'
+                )}
               >
                 <div
                   className="absolute inset-0 rounded-2xl border border-slate-700 bg-cover bg-center [backface-visibility:hidden]"
@@ -1741,23 +1761,10 @@ export default function DeclarationPlanPage() {
                     </button>
                   </div>
                 </div>
-                <div className="absolute inset-0 rounded-2xl border border-slate-200 bg-[#fffdf5] px-8 py-7 text-slate-700 [backface-visibility:hidden] [transform:rotateX(180deg)]">
-                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setStorageLedgerFlipped(false);
-                        setStorageLedgerHistoryOpen(false);
-                        setHistoryQueryStart('');
-                        setHistoryQueryEnd('');
-                      }}
-                      className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white/95 px-4 py-2 text-xs font-black uppercase tracking-widest text-slate-600 shadow-sm transition hover:border-slate-400 hover:text-blue-600"
-                    >
-                      <i className="fas fa-chevron-up" />
-                      收回封面 CLOSE
-                    </button>
-                  </div>
-                </div>
+                <div
+                  className="absolute inset-0 rounded-2xl border border-slate-200 bg-[#faf8f0] [backface-visibility:hidden] [transform:rotateX(180deg)]"
+                  aria-hidden
+                />
               </div>
             </div>
           </div>
