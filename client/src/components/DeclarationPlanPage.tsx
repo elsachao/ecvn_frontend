@@ -32,6 +32,25 @@ const MIDDAY_BESS_EXTRA_CHARGE_KW = 20;
 const EVENING_BESS_EXTRA_DISCHARGE_KW = 20;
 const TRANSFER_GREEN = '#16a34a';
 
+const declarationStatusLampSrc = `${import.meta.env.BASE_URL}declaration-status-lamp.png`;
+
+function DeclarationStatusLampIcon({ ledFilter }: { ledFilter?: string }) {
+  return (
+    <span className="relative inline-flex h-[52px] w-[52px] items-center justify-center rounded-full bg-gradient-to-b from-slate-100 to-slate-200 p-[2px] shadow-[inset_0_2px_5px_rgba(15,23,42,0.14)]">
+      <img
+        src={declarationStatusLampSrc}
+        alt=""
+        width={48}
+        height={48}
+        decoding="async"
+        draggable={false}
+        className="h-[48px] w-[48px] rounded-full object-cover shadow-[inset_0_-2px_6px_rgba(0,0,0,0.12),0_1px_2px_rgba(0,0,0,0.15)]"
+        style={ledFilter ? { filter: ledFilter } : undefined}
+      />
+    </span>
+  );
+}
+
 type ResourceCategory = 'gen' | 'load' | 'bess';
 type ResourceSeries = { id: string; data: number[] };
 type AgentProfile = {
@@ -762,49 +781,43 @@ export default function DeclarationPlanPage() {
   const lampConfig =
     unstoredSurplusKw > 3
       ? {
-          color: 'bg-red-500',
-          text: 'text-red-700',
           ring: 'ring-red-300',
           glow: 'shadow-[0_0_20px_rgba(239,68,68,0.55)]',
           label: '危險',
+          ledFilter: 'hue-rotate(105deg) saturate(1.28) brightness(1.03)',
         }
       : unstoredSurplusKw > 1
         ? {
-            color: 'bg-orange-500',
-            text: 'text-orange-700',
             ring: 'ring-orange-300',
             glow: 'shadow-[0_0_20px_rgba(249,115,22,0.5)]',
             label: '注意',
+            ledFilter: 'hue-rotate(-36deg) saturate(1.32) brightness(1.06)',
           }
         : {
-            color: 'bg-emerald-500',
-            text: 'text-emerald-700',
             ring: 'ring-emerald-300',
             glow: 'shadow-[0_0_20px_rgba(16,185,129,0.5)]',
             label: '正常',
+            ledFilter: undefined,
           };
   const socLampConfig = socHasRed
     ? {
-        color: 'bg-red-500',
-        text: 'text-red-700',
         ring: 'ring-red-300',
         glow: 'shadow-[0_0_20px_rgba(239,68,68,0.55)]',
         label: '異常',
+        ledFilter: 'hue-rotate(105deg) saturate(1.28) brightness(1.03)',
       }
     : socHasOrange
       ? {
-          color: 'bg-orange-500',
-          text: 'text-orange-700',
           ring: 'ring-orange-300',
           glow: 'shadow-[0_0_20px_rgba(249,115,22,0.5)]',
           label: '警告',
+          ledFilter: 'hue-rotate(-36deg) saturate(1.32) brightness(1.06)',
         }
       : {
-          color: 'bg-emerald-500',
-          text: 'text-emerald-700',
           ring: 'ring-emerald-300',
           glow: 'shadow-[0_0_20px_rgba(16,185,129,0.5)]',
           label: '正常',
+          ledFilter: undefined,
         };
 
   return (
@@ -935,13 +948,7 @@ export default function DeclarationPlanPage() {
                     aria-label={`餘電燈號：${lampConfig.label}，未儲存餘電 ${unstoredSurplusKw.toFixed(3)} kW`}
                     className={`flex h-20 w-20 shrink-0 cursor-help items-center justify-center rounded-full border border-slate-200 bg-white ring-2 transition hover:scale-105 hover:border-slate-300 hover:bg-slate-50 focus-visible:outline focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 ${lampConfig.ring} ${lampConfig.glow}`}
                   >
-                    <span className="relative inline-flex h-10 w-10 items-center justify-center rounded-full bg-slate-900/10 p-[3px] shadow-[inset_0_2px_4px_rgba(15,23,42,0.18)]">
-                      <span
-                        className={`relative inline-flex h-full w-full rounded-full ${lampConfig.color} shadow-[0_0_16px_rgba(255,255,255,0.2),inset_0_-3px_8px_rgba(0,0,0,0.24)]`}
-                      >
-                        <span className="absolute left-1 top-1 h-2 w-2 rounded-full bg-white/70 blur-[0.5px]" />
-                      </span>
-                    </span>
+                    <DeclarationStatusLampIcon ledFilter={lampConfig.ledFilter} />
                   </button>
                 </div>
               </TooltipTrigger>
@@ -968,13 +975,7 @@ export default function DeclarationPlanPage() {
                     aria-label={`儲能SOC燈號：${socLampConfig.label}`}
                     className={`flex h-20 w-20 shrink-0 cursor-help items-center justify-center rounded-full border border-slate-200 bg-white ring-2 transition hover:scale-105 hover:border-slate-300 hover:bg-slate-50 focus-visible:outline focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 ${socLampConfig.ring} ${socLampConfig.glow}`}
                   >
-                    <span className="relative inline-flex h-10 w-10 items-center justify-center rounded-full bg-slate-900/10 p-[3px] shadow-[inset_0_2px_4px_rgba(15,23,42,0.18)]">
-                      <span
-                        className={`relative inline-flex h-full w-full rounded-full ${socLampConfig.color} shadow-[0_0_16px_rgba(255,255,255,0.2),inset_0_-3px_8px_rgba(0,0,0,0.24)]`}
-                      >
-                        <span className="absolute left-1 top-1 h-2 w-2 rounded-full bg-white/70 blur-[0.5px]" />
-                      </span>
-                    </span>
+                    <DeclarationStatusLampIcon ledFilter={socLampConfig.ledFilter} />
                   </button>
                 </div>
               </TooltipTrigger>
