@@ -1573,8 +1573,8 @@ export default function DeclarationPlanPage() {
                 maxWidth: '100%',
               }}
             >
-              {/* 內頁只佔下半，上半留給 3D 封面內側，才能保留翻開的立體畫面 */}
-              <div className="absolute bottom-0 left-0 right-0 top-[44%] z-10 overflow-hidden rounded-b-2xl">
+              {/* 內頁往上貼齊鉸鏈，避免中間斷層 */}
+              <div className="absolute bottom-0 left-0 right-0 top-[36%] z-10 overflow-hidden rounded-b-2xl">
                 <PassbookWithPageEdge showEdge={storageLedgerFlipped}>
                   <div
                     className={cn(
