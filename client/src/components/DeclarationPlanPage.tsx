@@ -1573,25 +1573,13 @@ export default function DeclarationPlanPage() {
                 maxWidth: '100%',
               }}
             >
-              {/* 依翻頁狀態調整內頁鉸鏈高度，避免封面與內頁中間斷層 */}
-              <div
-                className="absolute bottom-0 left-0 right-0 z-10 overflow-hidden rounded-b-2xl transition-all duration-500"
-                style={
-                  storageLedgerFlipped
-                    ? {
-                        top: '18%',
-                        transform: 'translateY(-2px)',
-                      }
-                    : {
-                        top: '36%',
-                        transform: 'translateY(0)',
-                      }
-                }
-              >
+              {/* 內頁外框固定與封面四角對齊；內容位置再依翻頁狀態內縮 */}
+              <div className="absolute inset-0 z-10 overflow-hidden rounded-2xl">
                 <PassbookWithPageEdge showEdge={storageLedgerFlipped}>
                   <div
                     className={cn(
-                      'flex h-full min-h-0 flex-col overflow-hidden rounded-b-2xl border border-[#e3d5bc] border-t-amber-200/45 bg-[#fffdf5] p-4 pt-3 shadow-[0_12px_35px_rgba(15,23,42,0.18)] sm:p-5 sm:pt-4',
+                      'flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-[#e3d5bc] bg-[#fffdf5] p-4 shadow-[0_12px_35px_rgba(15,23,42,0.18)] sm:p-5',
+                      storageLedgerFlipped ? 'pt-[42%] sm:pt-[40%]' : 'pt-3 sm:pt-4',
                       storageLedgerFlipped &&
                         'border-[#dccfb5] shadow-[0_12px_35px_rgba(15,23,42,0.16),inset_0_4px_0_rgba(255,255,255,0.65),inset_0_-6px_16px_rgba(70,55,35,0.07),inset_-6px_0_16px_rgba(85,65,40,0.1),inset_0_6px_16px_rgba(85,65,40,0.07)]'
                     )}
