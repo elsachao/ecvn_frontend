@@ -13,10 +13,14 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Slider } from '@/components/ui/slider';
 import type { EChartsOption } from 'echarts';
 import ReactECharts from 'echarts-for-react';
+import { cn } from '@/lib/utils';
+import type { DateRange } from 'react-day-picker';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Swal, { type SweetAlertIcon } from 'sweetalert2';
 
@@ -254,6 +258,71 @@ const SUMMARY_CARD_STATS = [
 const STORAGE_SCHEDULE_TOOLTIP_TEXT =
   '儲能只可以在10:00-14:00充電、放電只可以在16:00-20:00之間';
 
+function formatPassbookZhDate(d: Date) {
+  return d.toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' });
+}
+
+function eachDayInclusive(from: Date, to: Date): Date[] {
+  const a = new Date(from);
+  a.setHours(0, 0, 0, 0);
+  const b = new Date(to);
+  b.setHours(0, 0, 0, 0);
+  if (a.getTime() > b.getTime()) return eachDayInclusive(to, from);
+  const out: Date[] = [];
+  const cur = new Date(a);
+  while (cur.getTime() <= b.getTime()) {
+    out.push(new Date(cur));
+    cur.setDate(cur.getDate() + 1);
+  }
+  return out;
+}
+
+/** 帳本內頁右側與下側紙邊厚度（約略對齊 text-lg 量級的立體感） */
+function PassbookWithPageEdge({
+  children,
+  showEdge = true,
+}: {
+  children: React.ReactNode;
+  showEdge?: boolean;
+}) {
+  if (!showEdge) {
+    return <div className="relative">{children}</div>;
+  }
+  return (
+    <div className="relative overflow-visible pr-2.5 pb-2.5">
+      {[0, 1, 2].map((i) => (
+        <div
+          key={`edge-r-${i}`}
+          aria-hidden
+          className="pointer-events-none absolute rounded-r-[10px] border border-amber-900/12 bg-gradient-to-r from-[#f3ecdd] via-[#e2d6c4] to-[#cbb89a] shadow-[1px_0_2px_rgba(0,0,0,0.06)]"
+          style={{
+            top: 10 + i * 2.5,
+            bottom: 10 + i * 2.5,
+            right: -2 - i * 3.5,
+            width: 6,
+            opacity: 1 - i * 0.16,
+          }}
+        />
+      ))}
+      {[0, 1, 2].map((i) => (
+        <div
+          key={`edge-b-${i}`}
+          aria-hidden
+          className="pointer-events-none absolute rounded-b-[10px] border border-amber-900/12 bg-gradient-to-b from-[#f3ecdd] via-[#e2d6c4] to-[#cbb89a] shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
+          style={{
+            left: 10 + i * 2.5,
+            right: 10 + i * 2.5,
+            bottom: -2 - i * 3.5,
+            height: 6,
+            opacity: 1 - i * 0.16,
+          }}
+        />
+      ))}
+      <div className="relative z-10">{children}</div>
+    </div>
+  );
+}
+
 const AGENT_PROFILES: AgentProfile[] = [
   {
     id: 'agent-a',
@@ -303,6 +372,8 @@ export default function DeclarationPlanPage() {
   const [socModalOpen, setSocModalOpen] = useState(false);
   const [storageLedgerOpen, setStorageLedgerOpen] = useState(false);
   const [storageLedgerFlipped, setStorageLedgerFlipped] = useState(false);
+  const [storageLedgerHistoryOpen, setStorageLedgerHistoryOpen] = useState(false);
+  const [storageHistoryRange, setStorageHistoryRange] = useState<DateRange | undefined>(undefined);
   const [socEditBuffer, setSocEditBuffer] = useState<number[]>([45, 53, 61]);
   const [resourceExpanded, setResourceExpanded] = useState(false);
   const [agentDetailExpanded, setAgentDetailExpanded] = useState(false);
@@ -446,6 +517,30 @@ export default function DeclarationPlanPage() {
       .filter((row) => row.expired && row.netMwh > 0)
       .reduce((acc, row) => acc + row.netMwh, 0);
   }, [storageLedgerRows]);
+
+  const storageHistoryRows = useMemo(() => {
+    const from = storageHistoryRange?.from;
+    const to = storageHistoryRange?.to;
+    if (!from || !to) return [];
+    return eachDayInclusive(from, to).map((d, idx) => {
+      const t = d.getTime();
+      const netMwh = Number(
+        ((Math.sin(t / 8e7) * 0.35 + 0.85 + (idx % 7) * 0.03) * 0.42).toFixed(3)
+      );
+      const hasExpired = (t / 86400000 + idx) % 13 === 0 && netMwh > 0.06;
+      const expiredMwh = hasExpired ? Number((netMwh * 0.2 + 0.015).toFixed(3)) : 0;
+      return {
+        dateLabel: d.toISOString().slice(0, 10),
+        netMwh,
+        expiredMwh,
+      };
+    });
+  }, [storageHistoryRange]);
+
+  const historyExpiredRangeMwh = useMemo(
+    () => storageHistoryRows.reduce((acc, row) => acc + row.expiredMwh, 0),
+    [storageHistoryRows]
+  );
 
   const bessSocRows = useMemo(() => {
     const bessCount = Math.max(store.bess.length, 1);
@@ -1039,6 +1134,7 @@ export default function DeclarationPlanPage() {
                     aria-label={`儲能累積有效量：${cumulativeStorageEffectiveKwh.toFixed(1)} kWh，點擊可查看近7天帳本`}
                     onClick={() => {
                       setStorageLedgerFlipped(false);
+                      setStorageLedgerHistoryOpen(false);
                       setStorageLedgerOpen(true);
                     }}
                     className="flex h-20 w-20 shrink-0 cursor-pointer flex-col items-center justify-center rounded-full border border-amber-200 bg-amber-50 text-amber-700 ring-2 ring-amber-300 shadow-[0_0_20px_rgba(245,158,11,0.45)] transition hover:scale-105 hover:border-amber-300 hover:bg-amber-100 focus-visible:outline focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2"
@@ -1479,84 +1575,232 @@ export default function DeclarationPlanPage() {
             className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm"
             onClick={() => {
               setStorageLedgerFlipped(false);
+              setStorageLedgerHistoryOpen(false);
               setStorageLedgerOpen(false);
             }}
           />
-          <div className="relative z-10 w-full max-w-[980px] [perspective:2000px]">
+          <div className="relative z-10 w-full max-w-[980px] overflow-visible [perspective:2000px]">
             <button
               type="button"
               aria-label="關閉帳本"
               onClick={() => {
                 setStorageLedgerFlipped(false);
+                setStorageLedgerHistoryOpen(false);
                 setStorageLedgerOpen(false);
               }}
               className="absolute -right-12 -top-3 z-30 inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white/95 text-slate-600 shadow-md transition hover:border-slate-300 hover:bg-white hover:text-slate-900"
             >
               <i className="fas fa-times text-sm" />
             </button>
-            <div className="relative w-full rounded-2xl [aspect-ratio:1024/588] [transform-style:preserve-3d]">
-                <div className="absolute inset-0 z-10 rounded-2xl border border-slate-200 bg-[#fffdf5] p-5 shadow-[0_12px_35px_rgba(15,23,42,0.18)]">
-                  <div className="mb-3 grid grid-cols-3 border-b border-slate-300 pb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
-                    <span>時間 (Date)</span>
-                    <span className="text-center">電能累積 (MWh)</span>
-                    <span className="text-right">狀態 (Status)</span>
+            <div
+              className={cn(
+                'relative w-full overflow-visible rounded-2xl [transform-style:preserve-3d]',
+                storageLedgerHistoryOpen ? 'min-h-[min(620px,82svh)]' : 'min-h-[min(520px,72svh)]'
+              )}
+            >
+              <div className="absolute inset-0 z-10 overflow-visible p-1">
+                <PassbookWithPageEdge showEdge={storageLedgerFlipped}>
+                  <div className="flex max-h-[calc(88svh-96px)] min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-[#fffdf5] p-5 shadow-[0_12px_35px_rgba(15,23,42,0.18)]">
+                    {storageLedgerHistoryOpen ? (
+                      <>
+                        <div className="mb-3 shrink-0 space-y-3 border-b border-slate-200 pb-3">
+                          <button
+                            type="button"
+                            onClick={() => setStorageLedgerHistoryOpen(false)}
+                            className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-xs font-black uppercase tracking-widest text-slate-700 shadow-sm transition hover:border-slate-400 hover:text-blue-700"
+                          >
+                            <i className="fas fa-chevron-left" />
+                            收回查詢歷史 CLOSE
+                          </button>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <button
+                                type="button"
+                                className="flex w-full items-stretch justify-between gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-left shadow-sm transition hover:border-blue-400 hover:bg-blue-50/50"
+                              >
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                                    查詢起日（入住）
+                                  </p>
+                                  <p className="truncate text-sm font-bold text-slate-900">
+                                    {storageHistoryRange?.from
+                                      ? formatPassbookZhDate(storageHistoryRange.from)
+                                      : '請選擇'}
+                                  </p>
+                                </div>
+                                <div className="flex shrink-0 items-center px-1 text-slate-400">
+                                  <i className="fas fa-arrow-right text-xs" aria-hidden />
+                                </div>
+                                <div className="min-w-0 flex-1 text-right">
+                                  <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                                    查詢迄日（退房）
+                                  </p>
+                                  <p className="truncate text-sm font-bold text-slate-900">
+                                    {storageHistoryRange?.to
+                                      ? formatPassbookZhDate(storageHistoryRange.to)
+                                      : '請選擇'}
+                                  </p>
+                                </div>
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent
+                              className="z-[70] w-auto border-slate-300 p-0 shadow-xl"
+                              align="center"
+                              sideOffset={8}
+                            >
+                              <Calendar
+                                mode="range"
+                                selected={storageHistoryRange}
+                                onSelect={setStorageHistoryRange}
+                                numberOfMonths={2}
+                                defaultMonth={
+                                  storageHistoryRange?.from ??
+                                  storageHistoryRange?.to ??
+                                  new Date(`${selectedDate}T12:00:00`)
+                                }
+                                className="rounded-lg"
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        <div className="min-h-0 flex-1 space-y-2 overflow-auto font-mono text-sm">
+                          {!storageHistoryRange?.from || !storageHistoryRange?.to ? (
+                            <p className="py-10 text-center text-sm text-slate-600">
+                              請選擇查詢起迄日期（類似訂房入住／退房區間）
+                            </p>
+                          ) : (
+                            <>
+                              <div className="sticky top-0 z-[1] mb-2 grid grid-cols-3 border-b border-slate-300 bg-[#fffdf5] pb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                                <span>時間 (Date)</span>
+                                <span className="text-center">電能累積量 (MWh)</span>
+                                <span className="text-right">狀態 (Status)</span>
+                              </div>
+                              {storageHistoryRows.map((row) => (
+                                <div
+                                  key={row.dateLabel}
+                                  className="grid grid-cols-3 rounded-lg bg-slate-50 px-2 py-2 text-slate-800"
+                                >
+                                  <span>{row.dateLabel}</span>
+                                  <span className="text-center">
+                                    {row.netMwh >= 0 ? '+' : ''}
+                                    {row.netMwh.toFixed(3)} MWh
+                                  </span>
+                                  <span className="text-right text-[11px] font-bold leading-snug">
+                                    <span className="block text-slate-800">已登記</span>
+                                    {row.expiredMwh > 0 && (
+                                      <span className="mt-0.5 block font-semibold text-amber-800">
+                                        過期量 {row.expiredMwh.toFixed(3)} MWh
+                                      </span>
+                                    )}
+                                  </span>
+                                </div>
+                              ))}
+                            </>
+                          )}
+                        </div>
+                        <div className="mt-3 shrink-0 border-t border-dashed border-slate-300 pt-3 text-right">
+                          <p className="text-xs font-black uppercase tracking-widest text-blue-900">
+                            於選取時間累積的過期放電量
+                          </p>
+                          <p className="mt-1 text-lg font-black text-blue-900">
+                            {historyExpiredRangeMwh.toFixed(3)} MWh
+                          </p>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="mb-3 grid grid-cols-3 border-b border-slate-300 pb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                          <span>時間 (Date)</span>
+                          <span className="text-center">電能累積 (MWh)</span>
+                          <span className="text-right">狀態 (Status)</span>
+                        </div>
+                        <div className="max-h-[280px] space-y-2 overflow-auto font-mono text-sm">
+                          {storageLedgerRows.map((row) => (
+                            <div
+                              key={row.dateLabel}
+                              className={`grid grid-cols-3 rounded-lg px-2 py-2 ${
+                                row.expired
+                                  ? 'animate-pulse bg-red-50 text-base font-black text-red-900'
+                                  : 'bg-slate-50 text-slate-700'
+                              }`}
+                            >
+                              <span>{row.dateLabel}</span>
+                              <span className="text-center">
+                                {row.netMwh >= 0 ? '+' : ''}
+                                {row.netMwh.toFixed(3)} MWh
+                              </span>
+                              <span className="self-center text-right text-[11px] font-bold uppercase">
+                                {row.status}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="mt-5 border-t border-dashed border-slate-300 pt-3 text-right">
+                          <p className="text-xs font-black uppercase tracking-widest text-blue-900">
+                            累積過期放電量 Total Expired
+                          </p>
+                          <p className="mt-1 text-lg font-black text-blue-900">{totalExpiredMwh.toFixed(3)} MWh</p>
+                        </div>
+                        <p className="mt-4 rounded-lg border border-blue-100 bg-blue-50 p-3 text-xs font-semibold leading-relaxed text-blue-900">
+                          此帳本記錄近 7 日儲能累積量；超過 7 天即失效，放電採先進先出（FIFO）扣減。
+                        </p>
+                        <div className="mt-4 flex justify-center">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const end = new Date(`${selectedDate}T12:00:00`);
+                              const start = new Date(end);
+                              start.setDate(start.getDate() - 13);
+                              setStorageHistoryRange({ from: start, to: end });
+                              setStorageLedgerHistoryOpen(true);
+                            }}
+                            className="rounded-full border border-slate-700 bg-slate-900 px-5 py-2 text-xs font-black uppercase tracking-widest text-white shadow-md transition hover:bg-slate-800"
+                          >
+                            歷史紀錄 OPEN
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
-                  <div className="max-h-[280px] space-y-2 overflow-auto font-mono text-sm">
-                    {storageLedgerRows.map((row) => (
-                      <div
-                        key={row.dateLabel}
-                        className={`grid grid-cols-3 rounded-lg px-2 py-2 ${
-                          row.expired ? 'animate-pulse bg-red-50 text-base font-black text-red-900' : 'bg-slate-50 text-slate-700'
-                        }`}
-                      >
-                        <span>{row.dateLabel}</span>
-                        <span className="text-center">{row.netMwh >= 0 ? '+' : ''}{row.netMwh.toFixed(3)} MWh</span>
-                        <span className="self-center text-right text-[11px] font-bold uppercase">{row.status}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="mt-5 border-t border-dashed border-slate-300 pt-3 text-right">
-                    <p className="text-xs font-black uppercase tracking-widest text-blue-900">累積過期放電量 Total Expired</p>
-                    <p className="mt-1 text-lg font-black text-blue-900">{totalExpiredMwh.toFixed(3)} MWh</p>
-                  </div>
-                  <p className="mt-4 rounded-lg border border-blue-100 bg-blue-50 p-3 text-xs font-semibold leading-relaxed text-blue-900">
-                    此帳本記錄近 7 日儲能累積量；超過 7 天即失效，放電採先進先出（FIFO）扣減。
-                  </p>
-                </div>
+                </PassbookWithPageEdge>
+              </div>
 
+              <div
+                className={`absolute inset-0 z-20 rounded-2xl [transform-origin:top] [transform-style:preserve-3d] transition-transform duration-1000 ${
+                  storageLedgerFlipped ? '[transform:rotateX(155deg)]' : ''
+                }`}
+              >
                 <div
-                  className={`absolute inset-0 z-20 rounded-2xl [transform-origin:top] [transform-style:preserve-3d] transition-transform duration-1000 ${
-                    storageLedgerFlipped ? '[transform:rotateX(155deg)]' : ''
-                  }`}
+                  className="absolute inset-0 rounded-2xl border border-slate-700 bg-cover bg-center [backface-visibility:hidden]"
+                  style={{ backgroundImage: `url('${storagePassbookCoverUrl}')` }}
                 >
-                  <div
-                    className="absolute inset-0 rounded-2xl border border-slate-700 bg-cover bg-center [backface-visibility:hidden]"
-                    style={{ backgroundImage: `url('${storagePassbookCoverUrl}')` }}
-                  >
-                    <div className="absolute inset-0 rounded-2xl bg-slate-900/25" />
-                    <div className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2">
-                      <button
-                        type="button"
-                        onClick={() => setStorageLedgerFlipped(true)}
-                        className="rounded-full border border-white/70 bg-black/45 px-4 py-2 text-xs font-black uppercase tracking-widest text-white transition hover:bg-black/60"
-                      >
-                        點擊翻開 OPEN
-                      </button>
-                    </div>
-                  </div>
-                  <div className="absolute inset-0 rounded-2xl border border-slate-200 bg-[#fffdf5] px-8 py-7 text-slate-700 [backface-visibility:hidden] [transform:rotateX(180deg)]">
-                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2">
-                      <button
-                        type="button"
-                        onClick={() => setStorageLedgerFlipped(false)}
-                        className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white/95 px-4 py-2 text-xs font-black uppercase tracking-widest text-slate-600 shadow-sm transition hover:border-slate-400 hover:text-blue-600"
-                      >
-                        <i className="fas fa-chevron-up" />
-                        收回封面 CLOSE
-                      </button>
-                    </div>
+                  <div className="absolute inset-0 rounded-2xl bg-slate-900/25" />
+                  <div className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2">
+                    <button
+                      type="button"
+                      onClick={() => setStorageLedgerFlipped(true)}
+                      className="rounded-full border border-white/70 bg-black/45 px-4 py-2 text-xs font-black uppercase tracking-widest text-white transition hover:bg-black/60"
+                    >
+                      點擊翻開 OPEN
+                    </button>
                   </div>
                 </div>
+                <div className="absolute inset-0 rounded-2xl border border-slate-200 bg-[#fffdf5] px-8 py-7 text-slate-700 [backface-visibility:hidden] [transform:rotateX(180deg)]">
+                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setStorageLedgerFlipped(false);
+                        setStorageLedgerHistoryOpen(false);
+                      }}
+                      className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white/95 px-4 py-2 text-xs font-black uppercase tracking-widest text-slate-600 shadow-sm transition hover:border-slate-400 hover:text-blue-600"
+                    >
+                      <i className="fas fa-chevron-up" />
+                      收回封面 CLOSE
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
