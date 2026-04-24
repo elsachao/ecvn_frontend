@@ -1,6 +1,6 @@
 import type { EChartsOption } from 'echarts';
 import ReactECharts from 'echarts-for-react';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 
 type HourRow = {
   hour: number;
@@ -43,13 +43,21 @@ function buildSeriesChartOption(title: string, rows: HourRow[], planKey: keyof H
     title: { text: title, left: 8, top: 4, textStyle: { fontSize: 13, fontWeight: 700, color: '#0f172a' } },
     grid: { top: 34, right: 18, bottom: 46, left: 52, containLabel: true },
     tooltip: { trigger: 'axis' },
-    legend: { top: 8, right: 10, textStyle: { fontSize: 11 } },
+    legend: { top: 8, right: 10, textStyle: { fontSize: 11, color: '#0f172a', fontWeight: 700 } },
     xAxis: {
       type: 'category',
       data: rows.map((r) => `${String(r.hour).padStart(2, '0')}:00`),
-      axisLabel: { fontSize: 10, interval: 3 },
+      axisLabel: { fontSize: 10, interval: 3, color: '#0f172a', fontWeight: 600 },
+      axisLine: { lineStyle: { color: '#334155', width: 1.3 } },
     },
-    yAxis: { type: 'value', name: unit, axisLabel: { fontSize: 10 } },
+    yAxis: {
+      type: 'value',
+      name: unit,
+      nameTextStyle: { color: '#0f172a', fontWeight: 700 },
+      axisLabel: { fontSize: 10, color: '#0f172a', fontWeight: 600 },
+      axisLine: { show: true, lineStyle: { color: '#334155', width: 1.3 } },
+      splitLine: { lineStyle: { color: '#94a3b8', width: 1, opacity: 0.65 } },
+    },
     series: [
       {
         name: '規劃量',
@@ -71,6 +79,14 @@ function buildSeriesChartOption(title: string, rows: HourRow[], planKey: keyof H
       },
     ],
   };
+}
+
+type SankeyStyleMode = 'ab' | 'c';
+type SankeyGranularity = 'summary4h' | 'detail24h';
+
+function pickRowsByGranularity(rows: HourRow[], granularity: SankeyGranularity): HourRow[] {
+  if (granularity === 'detail24h') return rows;
+  return rows.filter((r) => r.hour % 4 === 0);
 }
 
 export default function SettlementPreSettlementPage() {
@@ -105,15 +121,33 @@ export default function SettlementPreSettlementPage() {
     [hourlyRows]
   );
 
+  const [styleMode, setStyleMode] = useState<SankeyStyleMode>('ab');
+  const [granularity, setGranularity] = useState<SankeyGranularity>('summary4h');
+  const [cExpanded, setCExpanded] = useState(false);
+  const [enlargeSankey, setEnlargeSankey] = useState(false);
+  const [showSankeyTable, setShowSankeyTable] = useState(false);
+  const [showAllocationTable, setShowAllocationTable] = useState(false);
+  const [showStorageTable, setShowStorageTable] = useState(false);
+
+  const effectiveGranularity: SankeyGranularity = styleMode === 'ab' ? granularity : cExpanded ? 'detail24h' : 'summary4h';
+
   const sankeyModel = useMemo(() => {
-    const leftNodes = hourlyRows.map((row) => `發電端 ${String(row.hour).padStart(2, '0')}:00 (${row.generationActual.toFixed(1)}度)`);
+    const selectedRows = pickRowsByGranularity(hourlyRows, effectiveGranularity);
+    const leftNodes = selectedRows.map(
+      (row) => `發電端 ${String(row.hour).padStart(2, '0')}:00 (${row.generationActual.toFixed(1)}度)`
+    );
     const middleContract = 'ECVN合約與調節帳戶｜合約履行';
     const middleStorage = 'ECVN合約與調節帳戶｜儲能調節帳戶';
     const middleSurplus = 'ECVN合約與調節帳戶｜未履約餘電';
     const rightContractUser = '合約用戶（匹配成功）';
-    const rightHourNodes = hourlyRows.map((row) => `用戶端 ${String(row.hour).padStart(2, '0')}:00 (${row.loadActual.toFixed(1)}度)`);
+    const rightStorageTimeNodes = selectedRows.map(
+      (row) => `儲能 ${String(row.hour).padStart(2, '0')}:00 (${Math.max(Math.abs(row.storageActual), 0.1).toFixed(1)}度)`
+    );
+    const rightStorageBucket = '儲能時段總覽（點擊展開24時段）';
     const rightStorageBalance = '儲能餘額';
     const rightSurplus = '餘電';
+    const showStorageHours = styleMode === 'ab' || cExpanded;
+    const storageHourTargets = showStorageHours ? rightStorageTimeNodes : [rightStorageBucket];
 
     const nodes: Array<{ name: string; itemStyle?: { color: string }; label?: { position: 'left' | 'right' | 'inside' } }> = [
       ...leftNodes.map((name) => ({ name, itemStyle: { color: '#f59e0b' }, label: { position: 'left' as const } })),
@@ -121,7 +155,7 @@ export default function SettlementPreSettlementPage() {
       { name: middleStorage, itemStyle: { color: '#7c3aed' }, label: { position: 'inside' as const } },
       { name: middleSurplus, itemStyle: { color: '#a16207' }, label: { position: 'inside' as const } },
       { name: rightContractUser, itemStyle: { color: '#2563eb' }, label: { position: 'right' as const } },
-      ...rightHourNodes.map((name) => ({ name, itemStyle: { color: '#3b82f6' }, label: { position: 'right' as const } })),
+      ...storageHourTargets.map((name) => ({ name, itemStyle: { color: '#3b82f6' }, label: { position: 'right' as const } })),
       { name: rightStorageBalance, itemStyle: { color: '#10b981' }, label: { position: 'right' as const } },
       { name: rightSurplus, itemStyle: { color: '#f97316' }, label: { position: 'right' as const } },
     ];
@@ -133,9 +167,8 @@ export default function SettlementPreSettlementPage() {
     let totalStorageBalance = 0;
     let totalSurplus = 0;
 
-    hourlyRows.forEach((row) => {
+    selectedRows.forEach((row, index) => {
       const left = `發電端 ${String(row.hour).padStart(2, '0')}:00 (${row.generationActual.toFixed(1)}度)`;
-      const rightHour = `用戶端 ${String(row.hour).padStart(2, '0')}:00 (${row.loadActual.toFixed(1)}度)`;
       const gen = Math.max(row.generationActual, 0);
       const load = Math.max(row.loadActual, 0);
       const storageDispatch = Math.max(-row.storageActual, 0);
@@ -158,13 +191,11 @@ export default function SettlementPreSettlementPage() {
       if (unfulfilledPart > 0.05) {
         links.push({ source: left, target: middleSurplus, value: Number(unfulfilledPart.toFixed(1)) });
       }
-
-      links.push({ source: middleContract, target: rightHour, value: Number(Math.min(contractPart, userMatched).toFixed(1)) });
-      links.push({
-        source: middleStorage,
-        target: rightHour,
-        value: Number(Math.max(0, userMatched - Math.min(contractPart, userMatched)).toFixed(1)),
-      });
+      const storageToHour = Number(
+        Math.max(0, userMatched - Math.min(contractPart, userMatched) + storageDispatch * 0.25).toFixed(1)
+      );
+      const storageTarget = storageHourTargets[Math.min(index, storageHourTargets.length - 1)];
+      links.push({ source: middleStorage, target: storageTarget, value: storageToHour });
     });
 
     links.push({ source: middleContract, target: rightContractUser, value: Number(totalContract.toFixed(1)) });
@@ -180,7 +211,7 @@ export default function SettlementPreSettlementPage() {
         totalUnfulfilled: Number(totalUnfulfilled.toFixed(1)),
       },
     };
-  }, [hourlyRows]);
+  }, [hourlyRows, effectiveGranularity, styleMode, cExpanded]);
 
   const sankeyOption = useMemo<EChartsOption>(
     () => ({
@@ -196,6 +227,7 @@ export default function SettlementPreSettlementPage() {
           emphasis: { focus: 'adjacency' },
           nodeWidth: 12,
           nodeGap: 7,
+          draggable: true,
           lineStyle: { color: 'source', curveness: 0.45, opacity: 0.6 },
           label: { color: '#0f172a', fontSize: 11, fontWeight: 600, overflow: 'breakAll' },
           data: sankeyModel.nodes,
@@ -220,7 +252,7 @@ export default function SettlementPreSettlementPage() {
   );
 
   return (
-    <div className="space-y-6 pb-8">
+    <div className="space-y-6 pb-8 text-slate-800">
       <section className="rounded-2xl border border-slate-300 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-center gap-2">
           <span className="rounded-full border border-blue-300 bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">資料來源：AMI(量測)</span>
@@ -230,24 +262,88 @@ export default function SettlementPreSettlementPage() {
       </section>
 
       <section className="rounded-2xl border border-slate-300 bg-white p-5 shadow-sm">
-        <h3 className="text-lg font-bold text-slate-900">4.1 預結算 - 桑基匹配圖</h3>
-        <p className="mt-1 text-xs font-semibold text-slate-600">以單日每小時加總量，呈現發電端、合約履行量、用戶端匹配關係。</p>
-        <div className="mt-4 h-[360px] rounded-xl border border-slate-200 bg-slate-50 p-2">
-          <ReactECharts option={sankeyOption} style={{ height: '100%', width: '100%' }} />
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <span className="text-xs font-black text-slate-700">桑基呈現模式：</span>
+          <button
+            type="button"
+            onClick={() => setStyleMode('ab')}
+            className={`rounded-full px-3 py-1 text-xs font-bold ${styleMode === 'ab' ? 'bg-blue-700 text-white' : 'border border-slate-300 bg-white text-slate-700'}`}
+          >
+            樣式A+B（推薦）
+          </button>
+          <button
+            type="button"
+            onClick={() => setStyleMode('c')}
+            className={`rounded-full px-3 py-1 text-xs font-bold ${styleMode === 'c' ? 'bg-indigo-700 text-white' : 'border border-slate-300 bg-white text-slate-700'}`}
+          >
+            樣式C（互動展開）
+          </button>
+          {styleMode === 'ab' && (
+            <>
+              <button
+                type="button"
+                onClick={() => setGranularity('summary4h')}
+                className={`rounded-full px-3 py-1 text-xs font-bold ${granularity === 'summary4h' ? 'bg-slate-800 text-white' : 'border border-slate-300 bg-white text-slate-700'}`}
+              >
+                摘要（每4小時）
+              </button>
+              <button
+                type="button"
+                onClick={() => setGranularity('detail24h')}
+                className={`rounded-full px-3 py-1 text-xs font-bold ${granularity === 'detail24h' ? 'bg-slate-800 text-white' : 'border border-slate-300 bg-white text-slate-700'}`}
+              >
+                詳細（24時段）
+              </button>
+            </>
+          )}
+          {styleMode === 'c' && (
+            <span className="text-xs font-semibold text-slate-700">
+              先看摘要，點「儲能調節帳戶」可切換 24 時段展開。
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => setEnlargeSankey((v) => !v)}
+            className="ml-auto rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-bold text-slate-700"
+          >
+            {enlargeSankey ? '縮小圖表' : '放大圖表'}
+          </button>
         </div>
-        <p className="mt-2 text-xs font-semibold text-slate-600">
-          左側為 24 時段發電端；中間為「ECVN合約與調節帳戶」三類（合約履行、儲能調節帳戶、未履約餘電）；右側依序為合約用戶（匹配成功）、24 時段用戶端、儲能餘額、餘電。
+        <h3 className="text-lg font-bold text-slate-900">4.1 預結算 - 桑基匹配圖</h3>
+        <p className="mt-1 text-xs font-semibold text-slate-800">以單日加總量，呈現發電端 → ECVN合約與調節帳戶 → 合約用戶/儲能時段/儲能餘額/餘電。</p>
+        <div className={`mt-4 ${enlargeSankey ? 'h-[560px]' : 'h-[360px]'} rounded-xl border border-slate-200 bg-slate-50 p-2`}>
+          <ReactECharts
+            option={sankeyOption}
+            style={{ height: '100%', width: '100%' }}
+            onEvents={{
+              click: (params: { data?: { name?: string } }) => {
+                if (styleMode === 'c' && params.data?.name === 'ECVN合約與調節帳戶｜儲能調節帳戶') {
+                  setCExpanded((v) => !v);
+                }
+              },
+            }}
+          />
+        </div>
+        <p className="mt-2 text-xs font-semibold text-slate-800">
+          合約履行只流向「合約用戶（匹配成功）」；24 時段節點為「儲能時段價值」，由「儲能調節帳戶」流入。
         </p>
-        <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200">
+        <button
+          type="button"
+          onClick={() => setShowSankeyTable((v) => !v)}
+          className="mt-3 rounded-md border border-slate-300 bg-white px-3 py-1 text-xs font-bold text-slate-800"
+        >
+          {showSankeyTable ? '收合詳細表格' : '展開詳細表格'}
+        </button>
+        {showSankeyTable && <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200">
           <table className="min-w-full text-sm">
-            <thead className="bg-slate-100 text-slate-700">
+            <thead className="bg-slate-100 text-slate-900">
               <tr>
                 <th className="px-3 py-2 text-left font-bold">中間帳戶</th>
                 <th className="px-3 py-2 text-right font-bold">加總量(kWh)</th>
                 <th className="px-3 py-2 text-left font-bold">說明</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="text-slate-900">
               <tr className="border-t border-slate-200">
                 <td className="px-3 py-2">合約履行</td>
                 <td className="px-3 py-2 text-right tabular-nums">{sankeyModel.summary.totalContract.toFixed(1)}</td>
@@ -265,7 +361,7 @@ export default function SettlementPreSettlementPage() {
               </tr>
             </tbody>
           </table>
-        </div>
+        </div>}
       </section>
 
       <section className="rounded-2xl border border-slate-300 bg-white p-5 shadow-sm">
@@ -275,9 +371,16 @@ export default function SettlementPreSettlementPage() {
           <div className="h-[260px] rounded-xl border border-slate-200 bg-slate-50 p-2"><ReactECharts option={loadChartOption} style={{ height: '100%' }} /></div>
           <div className="h-[260px] rounded-xl border border-slate-200 bg-slate-50 p-2"><ReactECharts option={storageChartOption} style={{ height: '100%' }} /></div>
         </div>
-        <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200">
+        <button
+          type="button"
+          onClick={() => setShowAllocationTable((v) => !v)}
+          className="mt-4 rounded-md border border-slate-300 bg-white px-3 py-1 text-xs font-bold text-slate-800"
+        >
+          {showAllocationTable ? '收合詳細表格' : '展開詳細表格'}
+        </button>
+        {showAllocationTable && <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200">
           <table className="min-w-full text-sm">
-            <thead className="bg-slate-100 text-slate-700">
+            <thead className="bg-slate-100 text-slate-900">
               <tr>
                 <th className="px-3 py-2 text-left font-bold">時間</th>
                 <th className="px-3 py-2 text-right font-bold">預結算分配量(kWh)</th>
@@ -285,7 +388,7 @@ export default function SettlementPreSettlementPage() {
                 <th className="px-3 py-2 text-right font-bold">與用電即時差異(kWh)</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="text-slate-900">
               {allocationRows.map((r) => (
                 <tr key={`alloc-${r.hour}`} className="border-t border-slate-200">
                   <td className="px-3 py-2">{`${String(r.hour).padStart(2, '0')}:00`}</td>
@@ -296,15 +399,22 @@ export default function SettlementPreSettlementPage() {
               ))}
             </tbody>
           </table>
-        </div>
+        </div>}
       </section>
 
       <section className="rounded-2xl border border-slate-300 bg-white p-5 shadow-sm">
         <h3 className="text-lg font-bold text-slate-900">儲能預結算一致性（計畫量 vs 實際運轉）</h3>
-        <p className="mt-1 text-xs font-semibold text-slate-600">計畫量對應申報計畫數值；比對實際運轉是否一致。</p>
-        <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200">
+        <p className="mt-1 text-xs font-semibold text-slate-800">計畫量對應申報計畫數值；比對實際運轉是否一致。</p>
+        <button
+          type="button"
+          onClick={() => setShowStorageTable((v) => !v)}
+          className="mt-4 rounded-md border border-slate-300 bg-white px-3 py-1 text-xs font-bold text-slate-800"
+        >
+          {showStorageTable ? '收合詳細表格' : '展開詳細表格'}
+        </button>
+        {showStorageTable && <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200">
           <table className="min-w-full text-sm">
-            <thead className="bg-slate-100 text-slate-700">
+            <thead className="bg-slate-100 text-slate-900">
               <tr>
                 <th className="px-3 py-2 text-left font-bold">時間</th>
                 <th className="px-3 py-2 text-right font-bold">計畫量(kWh)</th>
@@ -313,7 +423,7 @@ export default function SettlementPreSettlementPage() {
                 <th className="px-3 py-2 text-center font-bold">一致性</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="text-slate-900">
               {storageSettlementRows.map((r) => (
                 <tr key={`storage-settlement-${r.hour}`} className="border-t border-slate-200">
                   <td className="px-3 py-2">{`${String(r.hour).padStart(2, '0')}:00`}</td>
@@ -329,7 +439,7 @@ export default function SettlementPreSettlementPage() {
               ))}
             </tbody>
           </table>
-        </div>
+        </div>}
       </section>
     </div>
   );
