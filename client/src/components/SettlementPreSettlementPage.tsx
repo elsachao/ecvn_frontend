@@ -91,6 +91,14 @@ function pickRowsByGranularity(rows: HourRow[], granularity: SankeyGranularity):
 
 export default function SettlementPreSettlementPage() {
   const hourlyRows = useMemo(() => buildHourlyRows(), []);
+  const now = useMemo(() => new Date(), []);
+  const [sankeyDatePreset, setSankeyDatePreset] = useState<'7d' | '30d' | 'all'>('7d');
+  const [sankeyDateStart, setSankeyDateStart] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 6);
+    return d.toISOString().slice(0, 10);
+  });
+  const [sankeyDateEnd, setSankeyDateEnd] = useState(() => new Date().toISOString().slice(0, 10));
 
   const allocationRows = useMemo(
     () =>
@@ -106,6 +114,43 @@ export default function SettlementPreSettlementPage() {
       }),
     [hourlyRows]
   );
+
+  const sankeyDetailRows = useMemo(() => {
+    const baseDate = new Date();
+    return Array.from({ length: 25 }, (_, idx) => {
+      const ref = new Date(baseDate);
+      ref.setDate(baseDate.getDate() - Math.floor(idx / 5));
+      ref.setHours((idx * 3) % 24, 0, 0, 0);
+
+      const source = hourlyRows[idx % hourlyRows.length];
+      const generation = Number(source.generationActual.toFixed(1));
+      const load = Number(source.loadActual.toFixed(1));
+      const storageIn = Number(Math.max(source.storageActual, 0).toFixed(1));
+      const storageOut = Number(Math.max(-source.storageActual, 0).toFixed(1));
+      const contractMatched = Number(Math.min(generation, load * 0.35).toFixed(1));
+      const totalMatched = Number((storageOut + contractMatched).toFixed(1));
+      return {
+        dateLabel: `${ref.toISOString().slice(0, 10)} ${String(ref.getHours()).padStart(2, '0')}:00`,
+        generation,
+        load,
+        storageIn,
+        storageOut,
+        contractMatched,
+        totalMatched,
+      };
+    });
+  }, [hourlyRows]);
+
+  const filteredSankeyDetailRows = useMemo(() => {
+    if (sankeyDatePreset === 'all') return sankeyDetailRows;
+    const end = new Date(`${sankeyDateEnd}T23:59:59`);
+    const start = new Date(`${sankeyDateStart}T00:00:00`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return sankeyDetailRows;
+    return sankeyDetailRows.filter((row) => {
+      const rowDate = new Date(`${row.dateLabel.slice(0, 10)}T12:00:00`);
+      return rowDate.getTime() >= start.getTime() && rowDate.getTime() <= end.getTime();
+    });
+  }, [sankeyDateEnd, sankeyDatePreset, sankeyDateStart, sankeyDetailRows]);
 
   const storageSettlementRows = useMemo(
     () =>
@@ -311,7 +356,7 @@ export default function SettlementPreSettlementPage() {
         </div>
         <h3 className="text-lg font-bold text-slate-900">4.1 預結算 - 桑基匹配圖</h3>
         <p className="mt-1 text-xs font-semibold text-slate-800">以單日加總量，呈現發電端 → ECVN合約與調節帳戶 → 合約用戶/儲能時段/儲能餘額/餘電。</p>
-        <div className={`mt-4 ${enlargeSankey ? 'h-[560px]' : 'h-[360px]'} rounded-xl border border-slate-200 bg-slate-50 p-2`}>
+        <div id="sankey-match-chart" className={`mt-4 ${enlargeSankey ? 'h-[560px]' : 'h-[360px]'} rounded-xl border border-slate-200 bg-slate-50 p-2`}>
           <ReactECharts
             option={sankeyOption}
             style={{ height: '100%', width: '100%' }}
@@ -362,6 +407,113 @@ export default function SettlementPreSettlementPage() {
             </tbody>
           </table>
         </div>}
+
+        <div className="mt-5 rounded-2xl border border-slate-300 bg-white p-4 shadow-sm">
+          <p className="mb-3 text-sm font-black text-slate-900">桑基匹配明細表（可點日期跳回桑基圖）</p>
+          <div className="mb-3 flex flex-wrap items-end gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <span className="mr-1 text-xs font-black text-slate-700">日期篩選：</span>
+            <button
+              type="button"
+              onClick={() => {
+                const end = new Date(now);
+                const start = new Date(now);
+                start.setDate(end.getDate() - 6);
+                setSankeyDatePreset('7d');
+                setSankeyDateStart(start.toISOString().slice(0, 10));
+                setSankeyDateEnd(end.toISOString().slice(0, 10));
+              }}
+              className={`rounded-full px-3 py-1 text-xs font-bold ${sankeyDatePreset === '7d' ? 'bg-blue-700 text-white' : 'border border-slate-300 bg-white text-slate-700'}`}
+            >
+              近7天（預設）
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const end = new Date(now);
+                const start = new Date(now);
+                start.setDate(end.getDate() - 29);
+                setSankeyDatePreset('30d');
+                setSankeyDateStart(start.toISOString().slice(0, 10));
+                setSankeyDateEnd(end.toISOString().slice(0, 10));
+              }}
+              className={`rounded-full px-3 py-1 text-xs font-bold ${sankeyDatePreset === '30d' ? 'bg-blue-700 text-white' : 'border border-slate-300 bg-white text-slate-700'}`}
+            >
+              近30天
+            </button>
+            <button
+              type="button"
+              onClick={() => setSankeyDatePreset('all')}
+              className={`rounded-full px-3 py-1 text-xs font-bold ${sankeyDatePreset === 'all' ? 'bg-blue-700 text-white' : 'border border-slate-300 bg-white text-slate-700'}`}
+            >
+              全部
+            </button>
+            <div className="ml-auto flex items-end gap-2">
+              <div>
+                <label className="mb-1 block text-[10px] font-bold text-slate-600">起日</label>
+                <input
+                  type="date"
+                  value={sankeyDateStart}
+                  onChange={(e) => {
+                    setSankeyDatePreset('7d');
+                    setSankeyDateStart(e.target.value);
+                  }}
+                  className="h-8 rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-800"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-[10px] font-bold text-slate-600">迄日</label>
+                <input
+                  type="date"
+                  value={sankeyDateEnd}
+                  onChange={(e) => {
+                    setSankeyDatePreset('7d');
+                    setSankeyDateEnd(e.target.value);
+                  }}
+                  className="h-8 rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-800"
+                />
+              </div>
+            </div>
+          </div>
+          <div className="max-h-[570px] overflow-auto rounded-lg border border-slate-200">
+            <table className="min-w-full text-sm">
+              <thead className="sticky top-0 z-[1] bg-slate-100 text-slate-900">
+                <tr>
+                  <th className="px-3 py-2 text-left font-bold">日期</th>
+                  <th className="px-3 py-2 text-right font-bold">發電端</th>
+                  <th className="px-3 py-2 text-right font-bold">用電端</th>
+                  <th className="px-3 py-2 text-right font-bold">儲能存入</th>
+                  <th className="px-3 py-2 text-right font-bold">儲能提領</th>
+                  <th className="px-3 py-2 text-right font-bold">合約匹配量</th>
+                  <th className="px-3 py-2 text-right font-bold">總匹配量(儲能提領+合約匹配量)</th>
+                </tr>
+              </thead>
+              <tbody className="text-slate-900">
+                {filteredSankeyDetailRows.map((row, idx) => (
+                  <tr key={`sankey-detail-${idx}`} className="border-t border-slate-200">
+                    <td className="px-3 py-2">
+                      <button
+                        type="button"
+                        className="font-semibold text-blue-700 underline-offset-2 hover:underline"
+                        onClick={() => {
+                          document.getElementById('sankey-match-chart')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }}
+                      >
+                        {row.dateLabel}
+                      </button>
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums">{row.generation.toFixed(1)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{row.load.toFixed(1)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{row.storageIn.toFixed(1)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{row.storageOut.toFixed(1)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{row.contractMatched.toFixed(1)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums font-semibold text-slate-950">{row.totalMatched.toFixed(1)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-2 text-xs font-semibold text-slate-700">一次視窗最多呈現約 15 行，其餘可透過表格內捲動檢視。</p>
+        </div>
       </section>
 
       <section className="rounded-2xl border border-slate-300 bg-white p-5 shadow-sm">
