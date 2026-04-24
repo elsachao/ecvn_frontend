@@ -83,6 +83,7 @@ function buildSeriesChartOption(title: string, rows: HourRow[], planKey: keyof H
 
 type SankeyStyleMode = 'ab' | 'c';
 type SankeyGranularity = 'summary4h' | 'detail24h';
+type SankeyFlowView = 'main' | 'charge' | 'discharge';
 
 function pickRowsByGranularity(rows: HourRow[], granularity: SankeyGranularity): HourRow[] {
   if (granularity === 'detail24h') return rows;
@@ -171,6 +172,7 @@ export default function SettlementPreSettlementPage() {
 
   const [styleMode, setStyleMode] = useState<SankeyStyleMode>('ab');
   const [granularity, setGranularity] = useState<SankeyGranularity>('summary4h');
+  const [sankeyFlowView, setSankeyFlowView] = useState<SankeyFlowView>('main');
   const [cExpanded, setCExpanded] = useState(false);
   const [enlargeSankey, setEnlargeSankey] = useState(false);
   const [showSankeyTable, setShowSankeyTable] = useState(false);
@@ -180,6 +182,70 @@ export default function SettlementPreSettlementPage() {
   const effectiveGranularity: SankeyGranularity = styleMode === 'ab' ? granularity : cExpanded ? 'detail24h' : 'summary4h';
 
   const sankeyModel = useMemo(() => {
+    if (sankeyFlowView === 'charge') {
+      const chargeHours = hourlyRows.filter((row) => row.hour >= 10 && row.hour <= 14);
+      const generatorMeters = ['G-101', 'G-102', 'G-103', 'G-104', 'G-105'];
+      const storageAccount = '儲能帳戶（充電）';
+      const nodes = [
+        ...chargeHours.map((row, idx) => ({
+          name: `${generatorMeters[idx % generatorMeters.length]}｜${String(row.hour).padStart(2, '0')}:00`,
+          itemStyle: { color: '#f59e0b' },
+          label: { position: 'left' as const },
+        })),
+        { name: storageAccount, itemStyle: { color: '#7c3aed' }, label: { position: 'right' as const } },
+      ];
+      const links = chargeHours.map((row, idx) => {
+        const chargeValue = Number(Math.max(row.storageActual, row.generationActual * 0.1, 0.1).toFixed(1));
+        return {
+          source: `${generatorMeters[idx % generatorMeters.length]}｜${String(row.hour).padStart(2, '0')}:00`,
+          target: storageAccount,
+          value: chargeValue,
+        };
+      });
+      const totalCharge = links.reduce((sum, link) => sum + link.value, 0);
+      return {
+        nodes,
+        links,
+        summary: {
+          totalContract: 0,
+          totalStorageFlow: Number(totalCharge.toFixed(1)),
+          totalUnfulfilled: 0,
+        },
+      };
+    }
+
+    if (sankeyFlowView === 'discharge') {
+      const dischargeHours = hourlyRows.filter((row) => row.hour >= 16 && row.hour <= 20);
+      const loadMeters = ['L-501', 'L-502', 'L-503', 'L-504', 'L-505'];
+      const storageAccount = '儲能帳戶（放電）';
+      const nodes = [
+        { name: storageAccount, itemStyle: { color: '#7c3aed' }, label: { position: 'left' as const } },
+        ...dischargeHours.map((row, idx) => ({
+          name: `${loadMeters[idx % loadMeters.length]}｜${String(row.hour).padStart(2, '0')}:00`,
+          itemStyle: { color: '#2563eb' },
+          label: { position: 'right' as const },
+        })),
+      ];
+      const links = dischargeHours.map((row, idx) => {
+        const dischargeValue = Number(Math.max(-row.storageActual, row.loadActual * 0.08, 0.1).toFixed(1));
+        return {
+          source: storageAccount,
+          target: `${loadMeters[idx % loadMeters.length]}｜${String(row.hour).padStart(2, '0')}:00`,
+          value: dischargeValue,
+        };
+      });
+      const totalDischarge = links.reduce((sum, link) => sum + link.value, 0);
+      return {
+        nodes,
+        links,
+        summary: {
+          totalContract: 0,
+          totalStorageFlow: Number(totalDischarge.toFixed(1)),
+          totalUnfulfilled: 0,
+        },
+      };
+    }
+
     const selectedRows = pickRowsByGranularity(hourlyRows, effectiveGranularity);
     const leftNodes = selectedRows.map(
       (row) => `發電端 ${String(row.hour).padStart(2, '0')}:00 (${row.generationActual.toFixed(1)}度)`
@@ -259,7 +325,7 @@ export default function SettlementPreSettlementPage() {
         totalUnfulfilled: Number(totalUnfulfilled.toFixed(1)),
       },
     };
-  }, [hourlyRows, effectiveGranularity, styleMode, cExpanded]);
+  }, [hourlyRows, effectiveGranularity, styleMode, cExpanded, sankeyFlowView]);
 
   const sankeyOption = useMemo<EChartsOption>(
     () => ({
@@ -384,8 +450,38 @@ export default function SettlementPreSettlementPage() {
                   <th className="px-3 py-2 text-left font-bold">日期</th>
                   <th className="px-3 py-2 text-right font-bold">發電端</th>
                   <th className="px-3 py-2 text-right font-bold">用電端</th>
-                  <th className="px-3 py-2 text-right font-bold">儲能存入</th>
-                  <th className="px-3 py-2 text-right font-bold">儲能提領</th>
+                  <th className="px-3 py-2 text-right font-bold">
+                    <button
+                      type="button"
+                      className="font-bold text-indigo-700 underline-offset-2 hover:underline"
+                      onClick={() => {
+                        setSankeyFlowView('charge');
+                        const anchor = document.getElementById('sankey-mode-anchor');
+                        if (anchor) {
+                          const y = anchor.getBoundingClientRect().top + window.scrollY - 16;
+                          window.scrollTo({ top: y, behavior: 'smooth' });
+                        }
+                      }}
+                    >
+                      儲能存入
+                    </button>
+                  </th>
+                  <th className="px-3 py-2 text-right font-bold">
+                    <button
+                      type="button"
+                      className="font-bold text-violet-700 underline-offset-2 hover:underline"
+                      onClick={() => {
+                        setSankeyFlowView('discharge');
+                        const anchor = document.getElementById('sankey-mode-anchor');
+                        if (anchor) {
+                          const y = anchor.getBoundingClientRect().top + window.scrollY - 16;
+                          window.scrollTo({ top: y, behavior: 'smooth' });
+                        }
+                      }}
+                    >
+                      儲能提領
+                    </button>
+                  </th>
                   <th className="px-3 py-2 text-right font-bold">合約匹配量</th>
                   <th className="px-3 py-2 text-right font-bold">總匹配量(儲能提領+合約匹配量)</th>
                 </tr>
@@ -399,9 +495,9 @@ export default function SettlementPreSettlementPage() {
                         className="font-semibold text-blue-700 underline-offset-2 hover:underline"
                         onClick={() => {
                           setSelectedSankeyDate(row.dateLabel);
-                          const anchor = document.getElementById('sankey-date-anchor');
+                          const anchor = document.getElementById('sankey-mode-anchor');
                           if (anchor) {
-                            const y = anchor.getBoundingClientRect().top + window.scrollY - 88;
+                            const y = anchor.getBoundingClientRect().top + window.scrollY - 16;
                             window.scrollTo({ top: y, behavior: 'smooth' });
                           }
                         }}
@@ -411,8 +507,40 @@ export default function SettlementPreSettlementPage() {
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums">{row.generation.toFixed(1)}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{row.load.toFixed(1)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{row.storageIn.toFixed(1)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{row.storageOut.toFixed(1)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">
+                      <button
+                        type="button"
+                        className="font-semibold text-indigo-700 underline-offset-2 hover:underline"
+                        onClick={() => {
+                          setSelectedSankeyDate(row.dateLabel);
+                          setSankeyFlowView('charge');
+                          const anchor = document.getElementById('sankey-mode-anchor');
+                          if (anchor) {
+                            const y = anchor.getBoundingClientRect().top + window.scrollY - 16;
+                            window.scrollTo({ top: y, behavior: 'smooth' });
+                          }
+                        }}
+                      >
+                        {row.storageIn.toFixed(1)}
+                      </button>
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums">
+                      <button
+                        type="button"
+                        className="font-semibold text-violet-700 underline-offset-2 hover:underline"
+                        onClick={() => {
+                          setSelectedSankeyDate(row.dateLabel);
+                          setSankeyFlowView('discharge');
+                          const anchor = document.getElementById('sankey-mode-anchor');
+                          if (anchor) {
+                            const y = anchor.getBoundingClientRect().top + window.scrollY - 16;
+                            window.scrollTo({ top: y, behavior: 'smooth' });
+                          }
+                        }}
+                      >
+                        {row.storageOut.toFixed(1)}
+                      </button>
+                    </td>
                     <td className="px-3 py-2 text-right tabular-nums">{row.contractMatched.toFixed(1)}</td>
                     <td className="px-3 py-2 text-right tabular-nums font-semibold text-slate-950">{row.totalMatched.toFixed(1)}</td>
                   </tr>
@@ -423,7 +551,7 @@ export default function SettlementPreSettlementPage() {
           <p className="mt-2 text-xs font-semibold text-slate-700">一次視窗最多呈現約 15 行，其餘可透過表格內捲動檢視。</p>
         </div>
 
-        <div className="mb-4 flex flex-wrap items-center gap-2">
+        <div id="sankey-mode-anchor" className="mb-4 flex scroll-mt-4 flex-wrap items-center gap-2">
           <span className="text-xs font-black text-slate-700">桑基呈現模式：</span>
           <button
             type="button"
@@ -470,6 +598,29 @@ export default function SettlementPreSettlementPage() {
             {enlargeSankey ? '縮小圖表' : '放大圖表'}
           </button>
         </div>
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setSankeyFlowView('main')}
+            className={`rounded-full px-3 py-1 text-xs font-bold ${sankeyFlowView === 'main' ? 'bg-slate-900 text-white' : 'border border-slate-300 bg-white text-slate-700'}`}
+          >
+            總匹配視角
+          </button>
+          <button
+            type="button"
+            onClick={() => setSankeyFlowView('charge')}
+            className={`rounded-full px-3 py-1 text-xs font-bold ${sankeyFlowView === 'charge' ? 'bg-indigo-700 text-white' : 'border border-slate-300 bg-white text-slate-700'}`}
+          >
+            儲能存入（10:00-14:00）
+          </button>
+          <button
+            type="button"
+            onClick={() => setSankeyFlowView('discharge')}
+            className={`rounded-full px-3 py-1 text-xs font-bold ${sankeyFlowView === 'discharge' ? 'bg-violet-700 text-white' : 'border border-slate-300 bg-white text-slate-700'}`}
+          >
+            儲能提領（16:00-20:00）
+          </button>
+        </div>
         <p className="mt-1 text-xs font-semibold text-slate-800">以單日加總量，呈現發電端 → ECVN合約與調節帳戶 → 合約用戶/儲能時段/儲能餘額/餘電。</p>
         <p id="sankey-date-anchor" className="mt-2 text-center text-sm font-bold text-slate-900">{sankeyDisplayDateText}</p>
         <div id="sankey-match-chart" className={`mt-4 ${enlargeSankey ? 'h-[560px]' : 'h-[360px]'} rounded-xl border border-slate-200 bg-slate-50 p-2`}>
@@ -512,7 +663,15 @@ export default function SettlementPreSettlementPage() {
               </tr>
               <tr className="border-t border-slate-200">
                 <td className="px-3 py-2">儲能調節帳戶</td>
-                <td className="px-3 py-2 text-right tabular-nums">{sankeyModel.summary.totalStorageFlow.toFixed(1)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">
+                  <button
+                    type="button"
+                    className="font-semibold text-indigo-700 underline-offset-2 hover:underline"
+                    onClick={() => setSankeyFlowView('charge')}
+                  >
+                    {sankeyModel.summary.totalStorageFlow.toFixed(1)}
+                  </button>
+                </td>
                 <td className="px-3 py-2">流向 24 時段用戶端與儲能餘額</td>
               </tr>
               <tr className="border-t border-slate-200">
