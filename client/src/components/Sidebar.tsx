@@ -117,7 +117,12 @@ export default function Sidebar() {
       </div>
 
       {/* 導覽選單 */}
-      <nav className="flex-1 space-y-1 overflow-y-auto overflow-x-visible px-3 py-4 custom-scrollbar">
+      <nav
+        className="flex-1 space-y-1 overflow-y-auto overflow-x-visible px-3 py-4 custom-scrollbar"
+        onMouseLeave={() => {
+          if (!isSidebarOpen) setCollapsedPopoverModule(null);
+        }}
+      >
         {navModules.map((module, moduleIndex) => {
           const isOpen = openModules.includes(module.id);
           const isLeaf = Boolean(module.leaf);
@@ -160,11 +165,6 @@ export default function Sidebar() {
               onMouseEnter={() => {
                 if (!isSidebarOpen && module.subItems.length > 0) {
                   setCollapsedPopoverModule(module.id);
-                }
-              }}
-              onMouseLeave={() => {
-                if (!isSidebarOpen) {
-                  setCollapsedPopoverModule((prev) => (prev === module.id ? null : prev));
                 }
               }}
             >
@@ -231,7 +231,10 @@ export default function Sidebar() {
 
               {/* 側欄縮小時的彈出子選單 */}
               {!isSidebarOpen && collapsedPopoverModule === module.id && module.subItems.length > 0 && (
-                <div className="absolute left-[5.25rem] z-40 mt-[-3.1rem] w-72 rounded-xl border border-slate-700 bg-slate-900/95 p-2 shadow-2xl backdrop-blur">
+                <div
+                  className="pointer-events-auto absolute left-[5.25rem] z-[70] mt-[-3.1rem] w-72 rounded-xl border border-slate-700 bg-slate-900/95 p-2 shadow-2xl backdrop-blur"
+                  onMouseEnter={() => setCollapsedPopoverModule(module.id)}
+                >
                   <div className="mb-1 px-2 py-1 text-xs font-bold tracking-wide text-slate-300">{module.label}</div>
                   <div className="space-y-1">
                     {module.subItems.map((sub) => (

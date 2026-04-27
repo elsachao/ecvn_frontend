@@ -12,18 +12,20 @@ type HourRow = {
   storageActual: number;
 };
 
-function buildHourlyRows(): HourRow[] {
+function buildHourlyRowsByDate(dateLabel: string): HourRow[] {
+  const seed = dateLabel.split('-').reduce((acc, part) => acc + Number(part || 0), 0);
   return Array.from({ length: 24 }, (_, hour) => {
+    const dayOffset = ((seed + hour * 13) % 11) - 5;
     const baseGen = hour >= 6 && hour <= 17 ? 55 + Math.sin((hour - 6) / 11 * Math.PI) * 95 : 18;
     const generationPlan = Number(baseGen.toFixed(1));
-    const generationActual = Number((generationPlan * (0.93 + ((hour % 5) - 2) * 0.018)).toFixed(1));
+    const generationActual = Number((generationPlan * (0.93 + ((hour % 5) - 2) * 0.018 + dayOffset * 0.003)).toFixed(1));
 
     const baseLoad = 72 + Math.cos((hour - 13) / 11 * Math.PI) * 26 + (hour >= 18 && hour <= 22 ? 24 : 0);
     const loadPlan = Number(baseLoad.toFixed(1));
-    const loadActual = Number((loadPlan * (0.95 + ((hour % 4) - 1) * 0.02)).toFixed(1));
+    const loadActual = Number((loadPlan * (0.95 + ((hour % 4) - 1) * 0.02 - dayOffset * 0.0025)).toFixed(1));
 
     const storagePlan = Number((hour >= 11 && hour <= 14 ? 20 + (hour - 11) * 4 : hour >= 18 && hour <= 20 ? -28 + (hour - 18) * 2 : 0).toFixed(1));
-    const storageActual = Number((storagePlan * (0.88 + ((hour % 3) - 1) * 0.06)).toFixed(1));
+    const storageActual = Number((storagePlan * (0.88 + ((hour % 3) - 1) * 0.06 + dayOffset * 0.002)).toFixed(1));
 
     return {
       hour,
@@ -91,7 +93,7 @@ function pickRowsByGranularity(rows: HourRow[], granularity: SankeyGranularity):
 }
 
 export default function SettlementPreSettlementPage() {
-  const hourlyRows = useMemo(() => buildHourlyRows(), []);
+  const hourlyRows = useMemo(() => buildHourlyRowsByDate(new Date().toISOString().slice(0, 10)), []);
   const now = useMemo(() => new Date(), []);
   const [sankeyDatePreset, setSankeyDatePreset] = useState<'7d' | '30d' | 'all'>('7d');
   const [sankeyDateStart, setSankeyDateStart] = useState(() => {
@@ -141,10 +143,11 @@ export default function SettlementPreSettlementPage() {
       return ref;
     });
 
-    dayRefs.forEach((ref, idx) => {
-      const source = hourlyRows[(idx * 3) % hourlyRows.length];
-      const generation = Number((source.generationActual * (0.95 + (idx % 5) * 0.02)).toFixed(1));
-      const load = Number((source.loadActual * (0.92 + (idx % 4) * 0.025)).toFixed(1));
+    dayRefs.forEach((ref) => {
+      const dateLabel = ref.toISOString().slice(0, 10);
+      const dayRows = buildHourlyRowsByDate(dateLabel);
+      const generation = Number(dayRows.reduce((sum, row) => sum + row.generationActual, 0).toFixed(1));
+      const load = Number(dayRows.reduce((sum, row) => sum + row.loadActual, 0).toFixed(1));
 
       // 發電端超過用電端時，優先提高儲能存入
       const surplus = Math.max(generation - load, 0);
@@ -165,7 +168,7 @@ export default function SettlementPreSettlementPage() {
       const totalMatched = Number((storageOut + contractMatched).toFixed(1));
 
       ascRows.push({
-        dateLabel: ref.toISOString().slice(0, 10),
+        dateLabel,
         generation,
         load,
         storageIn,
@@ -178,7 +181,7 @@ export default function SettlementPreSettlementPage() {
 
     // UI 維持由新到舊顯示
     return ascRows.reverse();
-  }, [hourlyRows]);
+  }, []);
 
   const sankeyDisplayDateText = useMemo(() => `日期：${selectedSankeyDate}`, [selectedSankeyDate]);
 
@@ -210,6 +213,8 @@ export default function SettlementPreSettlementPage() {
   const [styleMode, setStyleMode] = useState<SankeyStyleMode>('ab');
   const [granularity, setGranularity] = useState<SankeyGranularity>('summary4h');
   const [sankeyFlowView, setSankeyFlowView] = useState<SankeyFlowView>('main');
+  const [showGeneratorMeterId, setShowGeneratorMeterId] = useState(true);
+  const [showLoadMeterId, setShowLoadMeterId] = useState(true);
   const [cExpanded, setCExpanded] = useState(false);
   const [enlargeSankey, setEnlargeSankey] = useState(false);
   const [showSankeyTable, setShowSankeyTable] = useState(false);
@@ -217,15 +222,22 @@ export default function SettlementPreSettlementPage() {
   const [showStorageTable, setShowStorageTable] = useState(false);
 
   const effectiveGranularity: SankeyGranularity = styleMode === 'ab' ? granularity : cExpanded ? 'detail24h' : 'summary4h';
+  const activeHourlyRows = useMemo(() => buildHourlyRowsByDate(selectedSankeyDate), [selectedSankeyDate]);
+  const activeSankeyDetail = useMemo(
+    () => sankeyDetailRows.find((row) => row.dateLabel === selectedSankeyDate) ?? sankeyDetailRows[0],
+    [sankeyDetailRows, selectedSankeyDate]
+  );
 
   const sankeyModel = useMemo(() => {
     if (sankeyFlowView === 'charge') {
-      const chargeHours = hourlyRows.filter((row) => row.hour >= 10 && row.hour <= 14);
+      const chargeHours = activeHourlyRows.filter((row) => row.hour >= 10 && row.hour <= 14);
       const generatorMeters = ['G-101', 'G-102', 'G-103', 'G-104', 'G-105'];
       const storageAccount = '儲能帳戶（充電）';
       const nodes = [
         ...chargeHours.map((row, idx) => ({
-          name: `${generatorMeters[idx % generatorMeters.length]}｜${String(row.hour).padStart(2, '0')}:00`,
+          name: showGeneratorMeterId
+            ? `${generatorMeters[idx % generatorMeters.length]}｜太陽能｜${String(row.hour).padStart(2, '0')}:00`
+            : `發電端｜${String(row.hour).padStart(2, '0')}:00`,
           itemStyle: { color: '#f59e0b' },
           label: { position: 'left' as const },
         })),
@@ -234,7 +246,9 @@ export default function SettlementPreSettlementPage() {
       const links = chargeHours.map((row, idx) => {
         const chargeValue = Number(Math.max(row.storageActual, row.generationActual * 0.1, 0.1).toFixed(1));
         return {
-          source: `${generatorMeters[idx % generatorMeters.length]}｜${String(row.hour).padStart(2, '0')}:00`,
+          source: showGeneratorMeterId
+            ? `${generatorMeters[idx % generatorMeters.length]}｜太陽能｜${String(row.hour).padStart(2, '0')}:00`
+            : `發電端｜${String(row.hour).padStart(2, '0')}:00`,
           target: storageAccount,
           value: chargeValue,
         };
@@ -252,13 +266,15 @@ export default function SettlementPreSettlementPage() {
     }
 
     if (sankeyFlowView === 'discharge') {
-      const dischargeHours = hourlyRows.filter((row) => row.hour >= 16 && row.hour <= 20);
+      const dischargeHours = activeHourlyRows.filter((row) => row.hour >= 16 && row.hour <= 20);
       const loadMeters = ['L-501', 'L-502', 'L-503', 'L-504', 'L-505'];
       const storageAccount = '儲能帳戶（放電）';
       const nodes = [
         { name: storageAccount, itemStyle: { color: '#7c3aed' }, label: { position: 'left' as const } },
         ...dischargeHours.map((row, idx) => ({
-          name: `${loadMeters[idx % loadMeters.length]}｜${String(row.hour).padStart(2, '0')}:00`,
+          name: showLoadMeterId
+            ? `${loadMeters[idx % loadMeters.length]}｜用電端｜${String(row.hour).padStart(2, '0')}:00`
+            : `用電端｜${String(row.hour).padStart(2, '0')}:00`,
           itemStyle: { color: '#2563eb' },
           label: { position: 'right' as const },
         })),
@@ -267,7 +283,9 @@ export default function SettlementPreSettlementPage() {
         const dischargeValue = Number(Math.max(-row.storageActual, row.loadActual * 0.08, 0.1).toFixed(1));
         return {
           source: storageAccount,
-          target: `${loadMeters[idx % loadMeters.length]}｜${String(row.hour).padStart(2, '0')}:00`,
+          target: showLoadMeterId
+            ? `${loadMeters[idx % loadMeters.length]}｜用電端｜${String(row.hour).padStart(2, '0')}:00`
+            : `用電端｜${String(row.hour).padStart(2, '0')}:00`,
           value: dischargeValue,
         };
       });
@@ -283,14 +301,25 @@ export default function SettlementPreSettlementPage() {
       };
     }
 
-    const selectedRows = pickRowsByGranularity(hourlyRows, effectiveGranularity);
-    const leftNodes = selectedRows.map(
-      (row) => `發電端 ${String(row.hour).padStart(2, '0')}:00 (${row.generationActual.toFixed(1)}度)`
+    const selectedRows = pickRowsByGranularity(activeHourlyRows, effectiveGranularity);
+    const generatorMeters = ['G-101', 'G-102', 'G-103', 'G-104', 'G-105', 'G-106'];
+    const generatorResources = ['太陽能', '風力', '水力', '生質能', '太陽能', '風力'];
+    const loadMeters = ['L-501', 'L-502', 'L-503', 'L-504', 'L-505', 'L-506'];
+    const leftNodes = selectedRows.map((row, idx) =>
+      showGeneratorMeterId
+        ? `${generatorMeters[idx % generatorMeters.length]}｜${generatorResources[idx % generatorResources.length]}｜${String(row.hour).padStart(2, '0')}:00`
+        : `發電端 ${String(row.hour).padStart(2, '0')}:00 (${row.generationActual.toFixed(1)}度)`
     );
     const middleContract = 'ECVN合約與調節帳戶｜合約履行';
     const middleStorage = 'ECVN合約與調節帳戶｜儲能調節帳戶';
+    const middleStorageBalance = 'ECVN合約與調節帳戶｜儲能餘額';
     const middleSurplus = 'ECVN合約與調節帳戶｜未履約餘電';
     const rightContractUser = '合約用戶（匹配成功）';
+    const rightLoadMeterNodes = selectedRows.map((row, idx) =>
+      showLoadMeterId
+        ? `${loadMeters[idx % loadMeters.length]}｜${String(row.hour).padStart(2, '0')}:00`
+        : `用電端 ${String(row.hour).padStart(2, '0')}:00`
+    );
     const rightStorageTimeNodes = selectedRows.map(
       (row) => `儲能 ${String(row.hour).padStart(2, '0')}:00 (${Math.max(Math.abs(row.storageActual), 0.1).toFixed(1)}度)`
     );
@@ -304,8 +333,10 @@ export default function SettlementPreSettlementPage() {
       ...leftNodes.map((name) => ({ name, itemStyle: { color: '#f59e0b' }, label: { position: 'left' as const } })),
       { name: middleContract, itemStyle: { color: '#4f46e5' }, label: { position: 'inside' as const } },
       { name: middleStorage, itemStyle: { color: '#7c3aed' }, label: { position: 'inside' as const } },
+      { name: middleStorageBalance, itemStyle: { color: '#5b21b6' }, label: { position: 'inside' as const } },
       { name: middleSurplus, itemStyle: { color: '#a16207' }, label: { position: 'inside' as const } },
       { name: rightContractUser, itemStyle: { color: '#2563eb' }, label: { position: 'right' as const } },
+      ...rightLoadMeterNodes.map((name) => ({ name, itemStyle: { color: '#1d4ed8' }, label: { position: 'right' as const } })),
       ...storageHourTargets.map((name) => ({ name, itemStyle: { color: '#3b82f6' }, label: { position: 'right' as const } })),
       { name: rightStorageBalance, itemStyle: { color: '#10b981' }, label: { position: 'right' as const } },
       { name: rightSurplus, itemStyle: { color: '#f97316' }, label: { position: 'right' as const } },
@@ -317,9 +348,13 @@ export default function SettlementPreSettlementPage() {
     let totalUnfulfilled = 0;
     let totalStorageBalance = 0;
     let totalSurplus = 0;
+    let totalLoadMeterSupply = 0;
+    const carrySupportPerSlot = Math.max((activeSankeyDetail?.storageBalance ?? 0) * 0.18 / Math.max(selectedRows.length, 1), 0);
 
     selectedRows.forEach((row, index) => {
-      const left = `發電端 ${String(row.hour).padStart(2, '0')}:00 (${row.generationActual.toFixed(1)}度)`;
+      const left = showGeneratorMeterId
+        ? `${generatorMeters[index % generatorMeters.length]}｜${generatorResources[index % generatorResources.length]}｜${String(row.hour).padStart(2, '0')}:00`
+        : `發電端 ${String(row.hour).padStart(2, '0')}:00 (${row.generationActual.toFixed(1)}度)`;
       const gen = Math.max(row.generationActual, 0);
       const load = Math.max(row.loadActual, 0);
       const storageDispatch = Math.max(-row.storageActual, 0);
@@ -347,10 +382,21 @@ export default function SettlementPreSettlementPage() {
       );
       const storageTarget = storageHourTargets[Math.min(index, storageHourTargets.length - 1)];
       links.push({ source: middleStorage, target: storageTarget, value: storageToHour });
+      const loadMeterTarget = rightLoadMeterNodes[Math.min(index, rightLoadMeterNodes.length - 1)];
+      const fromStorageToLoadMeter = Number(Math.max(0, Math.min(load * 0.2, storageAccountPart * 0.3 + storageDispatch * 0.3)).toFixed(1));
+      if (fromStorageToLoadMeter > 0.05) {
+        links.push({ source: middleStorage, target: loadMeterTarget, value: fromStorageToLoadMeter });
+        totalLoadMeterSupply += fromStorageToLoadMeter;
+      }
+      if (carrySupportPerSlot > 0.05) {
+        links.push({ source: middleStorageBalance, target: loadMeterTarget, value: Number(carrySupportPerSlot.toFixed(1)) });
+      }
     });
 
     links.push({ source: middleContract, target: rightContractUser, value: Number(totalContract.toFixed(1)) });
+    links.push({ source: middleStorage, target: middleStorageBalance, value: Number(totalStorageBalance.toFixed(1)) });
     links.push({ source: middleStorage, target: rightStorageBalance, value: Number(totalStorageBalance.toFixed(1)) });
+    links.push({ source: middleStorageBalance, target: rightContractUser, value: Number(totalLoadMeterSupply.toFixed(1)) });
     links.push({ source: middleSurplus, target: rightSurplus, value: Number(Math.max(totalSurplus, totalUnfulfilled).toFixed(1)) });
 
     return {
@@ -358,11 +404,11 @@ export default function SettlementPreSettlementPage() {
       links: links.filter((l) => l.value > 0.05),
       summary: {
         totalContract: Number(totalContract.toFixed(1)),
-        totalStorageFlow: Number(totalStorageFlow.toFixed(1)),
+        totalStorageFlow: Number((totalStorageFlow + totalLoadMeterSupply).toFixed(1)),
         totalUnfulfilled: Number(totalUnfulfilled.toFixed(1)),
       },
     };
-  }, [hourlyRows, effectiveGranularity, styleMode, cExpanded, sankeyFlowView]);
+  }, [activeHourlyRows, effectiveGranularity, styleMode, cExpanded, sankeyFlowView, showGeneratorMeterId, showLoadMeterId, activeSankeyDetail]);
 
   const sankeyOption = useMemo<EChartsOption>(
     () => ({
@@ -500,7 +546,7 @@ export default function SettlementPreSettlementPage() {
                         }
                       }}
                     >
-                      儲能存入
+                      儲能存入(+)
                     </button>
                   </th>
                   <th className="px-3 py-2 text-right font-bold">
@@ -516,11 +562,11 @@ export default function SettlementPreSettlementPage() {
                         }
                       }}
                     >
-                      儲能提領
+                      儲能提領(-)
                     </button>
                   </th>
-                  <th className="px-3 py-2 text-right font-bold">儲能餘額</th>
-                  <th className="px-3 py-2 text-right font-bold">合約匹配量</th>
+                  <th className="px-3 py-2 text-right font-bold">儲能餘額(∑)</th>
+                  <th className="px-3 py-2 text-right font-bold text-blue-700">合約匹配量</th>
                   <th className="px-3 py-2 text-right font-bold text-blue-700">總匹配量(儲能提領+合約匹配量)</th>
                 </tr>
               </thead>
@@ -530,7 +576,7 @@ export default function SettlementPreSettlementPage() {
                     <td className="px-3 py-2">
                       <button
                         type="button"
-                        className="font-semibold text-slate-900 underline-offset-2 hover:underline"
+                        className="font-semibold text-blue-700 underline-offset-2 hover:underline"
                         onClick={() => {
                           setSelectedSankeyDate(row.dateLabel);
                           const anchor = document.getElementById('sankey-mode-anchor');
@@ -582,7 +628,7 @@ export default function SettlementPreSettlementPage() {
                     <td className="px-3 py-2 text-right tabular-nums font-semibold text-slate-900">
                       {row.storageBalance.toFixed(1)}
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums">{row.contractMatched.toFixed(1)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-blue-700">{row.contractMatched.toFixed(1)}</td>
                     <td className="px-3 py-2 text-right tabular-nums font-semibold text-blue-700">{row.totalMatched.toFixed(1)}</td>
                   </tr>
                 ))}
@@ -661,6 +707,24 @@ export default function SettlementPreSettlementPage() {
           >
             儲能提領（16:00-20:00）
           </button>
+        </div>
+        <div className="mb-3 flex flex-wrap items-center gap-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+          <label className="flex items-center gap-2 text-xs font-semibold text-slate-800">
+            <input
+              type="checkbox"
+              checked={showGeneratorMeterId}
+              onChange={(e) => setShowGeneratorMeterId(e.target.checked)}
+            />
+            顯示發電電號
+          </label>
+          <label className="flex items-center gap-2 text-xs font-semibold text-slate-800">
+            <input
+              type="checkbox"
+              checked={showLoadMeterId}
+              onChange={(e) => setShowLoadMeterId(e.target.checked)}
+            />
+            顯示用電電號
+          </label>
         </div>
         <p className="mt-1 text-xs font-semibold text-slate-800">以單日加總量，呈現發電端 → ECVN合約與調節帳戶 → 合約用戶/儲能時段/儲能餘額/餘電。</p>
         <p id="sankey-date-anchor" className="mt-2 text-center text-sm font-bold text-slate-900">{sankeyDisplayDateText}</p>
