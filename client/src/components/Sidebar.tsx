@@ -117,7 +117,7 @@ export default function Sidebar() {
       </div>
 
       {/* 導覽選單 */}
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto custom-scrollbar">
+      <nav className="flex-1 space-y-1 overflow-y-auto overflow-x-visible px-3 py-4 custom-scrollbar">
         {navModules.map((module, moduleIndex) => {
           const isOpen = openModules.includes(module.id);
           const isLeaf = Boolean(module.leaf);
@@ -157,6 +157,16 @@ export default function Sidebar() {
               key={module.id}
               className={`relative space-y-1 sidebar-module ${isSidebarOpen ? 'is-visible' : ''}`}
               style={{ animationDelay: `${moduleIndex * 35}ms` }}
+              onMouseEnter={() => {
+                if (!isSidebarOpen && module.subItems.length > 0) {
+                  setCollapsedPopoverModule(module.id);
+                }
+              }}
+              onMouseLeave={() => {
+                if (!isSidebarOpen) {
+                  setCollapsedPopoverModule((prev) => (prev === module.id ? null : prev));
+                }
+              }}
             >
               {/* 大模組按鈕 */}
               <button
@@ -166,7 +176,7 @@ export default function Sidebar() {
                     toggleModule(module.id);
                     return;
                   }
-                  setCollapsedPopoverModule((prev) => (prev === module.id ? null : module.id));
+                  setCollapsedPopoverModule(module.id);
                 }}
                 className={`w-full flex items-center px-3 py-3 rounded-lg transition-colors hover:bg-slate-800 text-slate-300 ${
                   !isSidebarOpen ? 'justify-center' : 'justify-between'

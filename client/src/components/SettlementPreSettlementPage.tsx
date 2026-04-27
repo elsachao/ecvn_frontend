@@ -490,7 +490,7 @@ export default function SettlementPreSettlementPage() {
                   <th className="px-3 py-2 text-right font-bold">
                     <button
                       type="button"
-                      className="font-bold text-indigo-700 underline-offset-2 hover:underline"
+                      className="font-bold text-slate-900 underline-offset-2 hover:underline"
                       onClick={() => {
                         setSankeyFlowView('charge');
                         const anchor = document.getElementById('sankey-mode-anchor');
@@ -503,11 +503,10 @@ export default function SettlementPreSettlementPage() {
                       儲能存入
                     </button>
                   </th>
-                  <th className="px-3 py-2 text-right font-bold">儲能餘額</th>
                   <th className="px-3 py-2 text-right font-bold">
                     <button
                       type="button"
-                      className="font-bold text-violet-700 underline-offset-2 hover:underline"
+                      className="font-bold text-slate-900 underline-offset-2 hover:underline"
                       onClick={() => {
                         setSankeyFlowView('discharge');
                         const anchor = document.getElementById('sankey-mode-anchor');
@@ -520,8 +519,9 @@ export default function SettlementPreSettlementPage() {
                       儲能提領
                     </button>
                   </th>
+                  <th className="px-3 py-2 text-right font-bold">儲能餘額</th>
                   <th className="px-3 py-2 text-right font-bold">合約匹配量</th>
-                  <th className="px-3 py-2 text-right font-bold">總匹配量(儲能提領+合約匹配量)</th>
+                  <th className="px-3 py-2 text-right font-bold text-blue-700">總匹配量(儲能提領+合約匹配量)</th>
                 </tr>
               </thead>
               <tbody className="text-slate-900">
@@ -530,7 +530,7 @@ export default function SettlementPreSettlementPage() {
                     <td className="px-3 py-2">
                       <button
                         type="button"
-                        className="font-semibold text-blue-700 underline-offset-2 hover:underline"
+                        className="font-semibold text-slate-900 underline-offset-2 hover:underline"
                         onClick={() => {
                           setSelectedSankeyDate(row.dateLabel);
                           const anchor = document.getElementById('sankey-mode-anchor');
@@ -548,7 +548,7 @@ export default function SettlementPreSettlementPage() {
                     <td className="px-3 py-2 text-right tabular-nums">
                       <button
                         type="button"
-                        className="font-semibold text-indigo-700 underline-offset-2 hover:underline"
+                        className="font-semibold text-slate-900 underline-offset-2 hover:underline"
                         onClick={() => {
                           setSelectedSankeyDate(row.dateLabel);
                           setSankeyFlowView('charge');
@@ -562,13 +562,10 @@ export default function SettlementPreSettlementPage() {
                         {row.storageIn.toFixed(1)}
                       </button>
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums font-semibold text-emerald-700">
-                      {row.storageBalance.toFixed(1)}
-                    </td>
                     <td className="px-3 py-2 text-right tabular-nums">
                       <button
                         type="button"
-                        className="font-semibold text-violet-700 underline-offset-2 hover:underline"
+                        className="font-semibold text-slate-900 underline-offset-2 hover:underline"
                         onClick={() => {
                           setSelectedSankeyDate(row.dateLabel);
                           setSankeyFlowView('discharge');
@@ -582,8 +579,11 @@ export default function SettlementPreSettlementPage() {
                         {row.storageOut.toFixed(1)}
                       </button>
                     </td>
+                    <td className="px-3 py-2 text-right tabular-nums font-semibold text-slate-900">
+                      {row.storageBalance.toFixed(1)}
+                    </td>
                     <td className="px-3 py-2 text-right tabular-nums">{row.contractMatched.toFixed(1)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums font-semibold text-slate-950">{row.totalMatched.toFixed(1)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums font-semibold text-blue-700">{row.totalMatched.toFixed(1)}</td>
                   </tr>
                 ))}
               </tbody>
