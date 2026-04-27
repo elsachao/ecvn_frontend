@@ -29,8 +29,6 @@ const LOAD_MAX_KW = 50;
 const BESS_MIN_KW = -50;
 const BESS_MAX_KW = 50;
 const MIDDAY_TRANSFER_REDUCTION_KW = 20;
-const MIDDAY_BESS_EXTRA_CHARGE_KW = 20;
-const EVENING_BESS_EXTRA_DISCHARGE_KW = 20;
 const TRANSFER_GREEN = '#16a34a';
 
 const base = import.meta.env.BASE_URL;
@@ -120,13 +118,6 @@ function isMiddayTransferReductionWindow(index: number): boolean {
 function applyContractTransferStrategy(index: number, baseTransferKw: number): number {
   if (!isMiddayTransferReductionWindow(index)) return baseTransferKw;
   return Math.max(baseTransferKw - MIDDAY_TRANSFER_REDUCTION_KW, 0);
-}
-
-function getStrategicBessDeltaTotal(index: number): number {
-  const h = getHourByIndex(index);
-  if (h >= 11 && h < 13) return MIDDAY_BESS_EXTRA_CHARGE_KW;
-  if (h >= 18 && h < 20) return -EVENING_BESS_EXTRA_DISCHARGE_KW;
-  return 0;
 }
 
 function isDischargeWindow(index: number): boolean {
@@ -253,7 +244,7 @@ const SUMMARY_CARD_STATS = [
 ] as const;
 
 const STORAGE_SCHEDULE_TOOLTIP_TEXT =
-  '儲能只可以在10:00-14:00充電、放電只可以在16:00-20:00之間';
+  '儲能只可以在10:45-14:00充電、放電只可以在16:00-20:00之間，且日放電總量=日充電總量。';
 
 function eachDayInclusive(from: Date, to: Date): Date[] {
   const a = new Date(from);
@@ -356,18 +347,40 @@ export default function DeclarationPlanPage() {
   }, [currentView, declarationPlanSection, declarationPlanNavSeq]);
 
   const summaryRows = useMemo(() => {
-    return INTERVAL_LABELS.map((time, i) => {
+    const baseRows = INTERVAL_LABELS.map((time, i) => {
       const genVal = sumSeriesAt(store, 'gen', i);
       const loadVal = sumSeriesAt(store, 'load', i);
       const contractQty = applyContractTransferStrategy(i, Math.min(genVal, loadVal));
-      const strategicBess = sumSeriesAt(store, 'bess', i) + getStrategicBessDeltaTotal(i);
       return {
         time,
         gen: genVal,
         load: loadVal,
-        bess: Number(strategicBess.toFixed(3)),
+        bess: 0,
         contractQty: Number(contractQty.toFixed(3)),
       };
+    });
+    const chargeCandidates = baseRows.map((row, i) => {
+      const hour = getHourByIndex(i);
+      const isChargeWindowAfter1045 = i >= 43 && hour < 14; // 10:45 後到 14:00 前
+      if (!isChargeWindowAfter1045) return 0;
+      if (row.gen < row.load) return 0;
+      const bySurplus = Math.max(row.gen - row.load, 0) * 0.32;
+      const byContractRule = Math.max(row.gen - row.contractQty, 0) * 0.2;
+      const candidate = Math.min(bySurplus, byContractRule);
+      return Number(Math.max(0, candidate).toFixed(3));
+    });
+    const totalChargeKwh = chargeCandidates.reduce((acc, kw) => acc + kw / 4, 0);
+    const dischargeIndices = baseRows
+      .map((_, i) => i)
+      .filter((i) => isDischargeWindow(i));
+    const dischargeKwPerInterval =
+      dischargeIndices.length > 0 ? Number(((totalChargeKwh * 4) / dischargeIndices.length).toFixed(3)) : 0;
+
+    return baseRows.map((row, i) => {
+      const chargeKw = chargeCandidates[i] ?? 0;
+      const dischargeKw = dischargeIndices.includes(i) ? dischargeKwPerInterval : 0;
+      const bess = Number((chargeKw - dischargeKw).toFixed(3));
+      return { ...row, bess };
     });
   }, [store]);
 
@@ -392,16 +405,16 @@ export default function DeclarationPlanPage() {
   }, [store]);
 
   const bessRows = useMemo(() => {
-    const bessCount = Math.max(store.bess.length, 1);
+    const splitRatios = [0.34, 0.33, 0.33];
     return INTERVAL_LABELS.map((time, i) => {
       const row: Record<string, string | number> = { time };
-      const deltaPerSeries = getStrategicBessDeltaTotal(i) / bessCount;
-      store.bess.forEach((g, j) => {
-        row[`b${j}`] = Number((g.data[i] + deltaPerSeries).toFixed(3));
+      const totalBess = summaryRows[i]?.bess ?? 0;
+      store.bess.forEach((_, j) => {
+        row[`b${j}`] = Number((totalBess * (splitRatios[j] ?? 0)).toFixed(3));
       });
       return row;
     });
-  }, [store]);
+  }, [store, summaryRows]);
 
   /** 3.4：轉供量跟隨再生能源合計，每 15 分鐘不超過負載合計 */
   const contractTransferRows = useMemo(() => {
@@ -522,13 +535,13 @@ export default function DeclarationPlanPage() {
   );
 
   const bessSocRows = useMemo(() => {
-    const bessCount = Math.max(store.bess.length, 1);
+    const splitRatios = [0.34, 0.33, 0.33];
     const seriesSoc = store.bess.map((series, seriesIdx) => {
       const initialSoc = clampByRange(socInitialValues[seriesIdx] ?? 50, 0, 100);
       const socData: number[] = [];
       let soc = initialSoc;
-      series.data.forEach((kw, idx) => {
-        const adjustedKw = kw + getStrategicBessDeltaTotal(idx) / bessCount;
+      series.data.forEach((_, idx) => {
+        const adjustedKw = (summaryRows[idx]?.bess ?? 0) * (splitRatios[seriesIdx] ?? 0);
         // 15 分鐘轉換為 SOC 變化比例（示意邏輯）
         const delta = (adjustedKw / 12) * 2.2;
         soc = clampByRange(soc + delta, 0, 100);
@@ -544,7 +557,7 @@ export default function DeclarationPlanPage() {
       });
       return row;
     });
-  }, [store.bess, socInitialValues]);
+  }, [store.bess, socInitialValues, summaryRows]);
 
   const baseChartOption = useMemo(
     () => ({
@@ -743,21 +756,21 @@ export default function DeclarationPlanPage() {
 
   const bessResourceTotals = useMemo(
     () =>
-      store.bess.map((series) => {
-        const bessCount = Math.max(store.bess.length, 1);
+      store.bess.map((series, i) => {
+        const ratio = [0.34, 0.33, 0.33][i] ?? 0;
         const charge =
-          series.data.reduce((acc, val, idx) => {
-            const adjusted = val + getStrategicBessDeltaTotal(idx) / bessCount;
+          summaryRows.reduce((acc, row) => {
+            const adjusted = row.bess * ratio;
             return acc + (adjusted > 0 ? adjusted : 0);
           }, 0) / 4;
         const discharge =
-          series.data.reduce((acc, val, idx) => {
-            const adjusted = val + getStrategicBessDeltaTotal(idx) / bessCount;
+          summaryRows.reduce((acc, row) => {
+            const adjusted = row.bess * ratio;
             return acc + (adjusted < 0 ? Math.abs(adjusted) : 0);
           }, 0) / 4;
         return { id: series.id, charge, discharge };
       }),
-    [store.bess]
+    [store.bess, summaryRows]
   );
 
   const openUpload = (title: string) => {

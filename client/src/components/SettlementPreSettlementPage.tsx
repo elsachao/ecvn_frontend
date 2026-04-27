@@ -223,10 +223,11 @@ export default function SettlementPreSettlementPage() {
 
   const effectiveGranularity: SankeyGranularity = styleMode === 'ab' ? granularity : cExpanded ? 'detail24h' : 'summary4h';
   const activeHourlyRows = useMemo(() => buildHourlyRowsByDate(selectedSankeyDate), [selectedSankeyDate]);
-  const activeSankeyDetail = useMemo(
-    () => sankeyDetailRows.find((row) => row.dateLabel === selectedSankeyDate) ?? sankeyDetailRows[0],
-    [sankeyDetailRows, selectedSankeyDate]
-  );
+  const previousDayStorageBalance = useMemo(() => {
+    const idx = sankeyDetailRows.findIndex((row) => row.dateLabel === selectedSankeyDate);
+    if (idx >= 0 && idx < sankeyDetailRows.length - 1) return sankeyDetailRows[idx + 1].storageBalance;
+    return sankeyDetailRows[0]?.storageBalance ?? 0;
+  }, [sankeyDetailRows, selectedSankeyDate]);
 
   const sankeyModel = useMemo(() => {
     if (sankeyFlowView === 'charge') {
@@ -314,7 +315,9 @@ export default function SettlementPreSettlementPage() {
     const middleStorage = 'ECVN合約與調節帳戶｜儲能調節帳戶';
     const middleStorageBalance = 'ECVN合約與調節帳戶｜儲能餘額';
     const middleSurplus = 'ECVN合約與調節帳戶｜未履約餘電';
+    const leftPrevDayStorage = `前一天儲能餘額 (${previousDayStorageBalance.toFixed(1)}度)`;
     const rightContractUser = '合約用戶（匹配成功）';
+    const rightDischargeWindow = '儲能提領時段 16:00-20:00';
     const rightLoadMeterNodes = selectedRows.map((row, idx) =>
       showLoadMeterId
         ? `${loadMeters[idx % loadMeters.length]}｜${String(row.hour).padStart(2, '0')}:00`
@@ -331,11 +334,13 @@ export default function SettlementPreSettlementPage() {
 
     const nodes: Array<{ name: string; itemStyle?: { color: string }; label?: { position: 'left' | 'right' | 'inside' } }> = [
       ...leftNodes.map((name) => ({ name, itemStyle: { color: '#f59e0b' }, label: { position: 'left' as const } })),
+      { name: leftPrevDayStorage, itemStyle: { color: '#0f766e' }, label: { position: 'left' as const } },
       { name: middleContract, itemStyle: { color: '#4f46e5' }, label: { position: 'inside' as const } },
       { name: middleStorage, itemStyle: { color: '#7c3aed' }, label: { position: 'inside' as const } },
       { name: middleStorageBalance, itemStyle: { color: '#5b21b6' }, label: { position: 'inside' as const } },
       { name: middleSurplus, itemStyle: { color: '#a16207' }, label: { position: 'inside' as const } },
       { name: rightContractUser, itemStyle: { color: '#2563eb' }, label: { position: 'right' as const } },
+      { name: rightDischargeWindow, itemStyle: { color: '#1e40af' }, label: { position: 'right' as const } },
       ...rightLoadMeterNodes.map((name) => ({ name, itemStyle: { color: '#1d4ed8' }, label: { position: 'right' as const } })),
       ...storageHourTargets.map((name) => ({ name, itemStyle: { color: '#3b82f6' }, label: { position: 'right' as const } })),
       { name: rightStorageBalance, itemStyle: { color: '#10b981' }, label: { position: 'right' as const } },
@@ -349,7 +354,10 @@ export default function SettlementPreSettlementPage() {
     let totalStorageBalance = 0;
     let totalSurplus = 0;
     let totalLoadMeterSupply = 0;
-    const carrySupportPerSlot = Math.max((activeSankeyDetail?.storageBalance ?? 0) * 0.18 / Math.max(selectedRows.length, 1), 0);
+    let totalStorageDischargeWindow = 0;
+    let totalPrevDayContribution = 0;
+    const prevDayCarry = Math.max(previousDayStorageBalance, 0);
+    const prevDayAvailableForDischarge = prevDayCarry * 0.42;
 
     selectedRows.forEach((row, index) => {
       const left = showGeneratorMeterId
@@ -359,8 +367,10 @@ export default function SettlementPreSettlementPage() {
       const load = Math.max(row.loadActual, 0);
       const storageDispatch = Math.max(-row.storageActual, 0);
       const storageCharge = Math.max(row.storageActual, 0);
+      const canChargeToStorage = row.hour >= 10 && row.hour <= 14;
+      const canDischargeFromStorage = row.hour >= 16 && row.hour <= 20;
       const contractPart = Math.min(gen, load * 0.35);
-      const storageAccountPart = Math.max(0, gen - contractPart - storageCharge);
+      const storageAccountPart = canChargeToStorage ? Math.max(0, gen - contractPart - storageCharge) : 0;
       const unfulfilledPart = Math.max(0, gen - contractPart - storageAccountPart);
       const userMatched = Math.min(load, contractPart + storageAccountPart + storageDispatch);
       const storageBalancePart = Math.max(0, storageCharge - storageDispatch * 0.15);
@@ -377,26 +387,40 @@ export default function SettlementPreSettlementPage() {
       if (unfulfilledPart > 0.05) {
         links.push({ source: left, target: middleSurplus, value: Number(unfulfilledPart.toFixed(1)) });
       }
-      const storageToHour = Number(
-        Math.max(0, userMatched - Math.min(contractPart, userMatched) + storageDispatch * 0.25).toFixed(1)
-      );
-      const storageTarget = storageHourTargets[Math.min(index, storageHourTargets.length - 1)];
-      links.push({ source: middleStorage, target: storageTarget, value: storageToHour });
+      const storageToHour = canDischargeFromStorage
+        ? Number(Math.max(0, userMatched - Math.min(contractPart, userMatched) + storageDispatch * 0.25).toFixed(1))
+        : 0;
+      if (storageToHour > 0.05) {
+        const storageTarget = storageHourTargets[Math.min(index, storageHourTargets.length - 1)];
+        links.push({ source: middleStorage, target: storageTarget, value: storageToHour });
+      }
       const loadMeterTarget = rightLoadMeterNodes[Math.min(index, rightLoadMeterNodes.length - 1)];
-      const fromStorageToLoadMeter = Number(Math.max(0, Math.min(load * 0.2, storageAccountPart * 0.3 + storageDispatch * 0.3)).toFixed(1));
+      const fromStorageToLoadMeter = canDischargeFromStorage
+        ? Number(Math.max(0, Math.min(load * 0.2, storageAccountPart * 0.3 + storageDispatch * 0.3)).toFixed(1))
+        : 0;
       if (fromStorageToLoadMeter > 0.05) {
         links.push({ source: middleStorage, target: loadMeterTarget, value: fromStorageToLoadMeter });
         totalLoadMeterSupply += fromStorageToLoadMeter;
+        totalStorageDischargeWindow += fromStorageToLoadMeter;
       }
-      if (carrySupportPerSlot > 0.05) {
-        links.push({ source: middleStorageBalance, target: loadMeterTarget, value: Number(carrySupportPerSlot.toFixed(1)) });
+      if (canDischargeFromStorage && prevDayAvailableForDischarge > 0.05) {
+        const carryShare = Number((prevDayAvailableForDischarge / 5).toFixed(1));
+        if (carryShare > 0.05) {
+          links.push({ source: middleStorageBalance, target: loadMeterTarget, value: carryShare });
+          totalPrevDayContribution += carryShare;
+          totalStorageDischargeWindow += carryShare;
+        }
       }
     });
 
+    if (prevDayCarry > 0.05) {
+      links.push({ source: leftPrevDayStorage, target: middleStorage, value: Number(prevDayCarry.toFixed(1)) });
+    }
     links.push({ source: middleContract, target: rightContractUser, value: Number(totalContract.toFixed(1)) });
     links.push({ source: middleStorage, target: middleStorageBalance, value: Number(totalStorageBalance.toFixed(1)) });
     links.push({ source: middleStorage, target: rightStorageBalance, value: Number(totalStorageBalance.toFixed(1)) });
     links.push({ source: middleStorageBalance, target: rightContractUser, value: Number(totalLoadMeterSupply.toFixed(1)) });
+    links.push({ source: middleStorage, target: rightDischargeWindow, value: Number(totalStorageDischargeWindow.toFixed(1)) });
     links.push({ source: middleSurplus, target: rightSurplus, value: Number(Math.max(totalSurplus, totalUnfulfilled).toFixed(1)) });
 
     return {
@@ -404,11 +428,11 @@ export default function SettlementPreSettlementPage() {
       links: links.filter((l) => l.value > 0.05),
       summary: {
         totalContract: Number(totalContract.toFixed(1)),
-        totalStorageFlow: Number((totalStorageFlow + totalLoadMeterSupply).toFixed(1)),
+        totalStorageFlow: Number((totalStorageFlow + totalLoadMeterSupply + totalPrevDayContribution).toFixed(1)),
         totalUnfulfilled: Number(totalUnfulfilled.toFixed(1)),
       },
     };
-  }, [activeHourlyRows, effectiveGranularity, styleMode, cExpanded, sankeyFlowView, showGeneratorMeterId, showLoadMeterId, activeSankeyDetail]);
+  }, [activeHourlyRows, effectiveGranularity, styleMode, cExpanded, sankeyFlowView, showGeneratorMeterId, showLoadMeterId, previousDayStorageBalance]);
 
   const sankeyOption = useMemo<EChartsOption>(
     () => ({
@@ -778,6 +802,11 @@ export default function SettlementPreSettlementPage() {
                   </button>
                 </td>
                 <td className="px-3 py-2">流向 24 時段用戶端與儲能餘額</td>
+              </tr>
+              <tr className="border-t border-slate-200">
+                <td className="px-3 py-2">前一天儲能餘額</td>
+                <td className="px-3 py-2 text-right tabular-nums">{previousDayStorageBalance.toFixed(1)}</td>
+                <td className="px-3 py-2">左下來源，直接流入「儲能調節帳戶」供 16:00-20:00 提領使用</td>
               </tr>
               <tr className="border-t border-slate-200">
                 <td className="px-3 py-2">未履約餘電</td>
