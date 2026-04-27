@@ -118,29 +118,66 @@ export default function SettlementPreSettlementPage() {
   );
 
   const sankeyDetailRows = useMemo(() => {
+    const totalDays = 25;
     const baseDate = new Date();
-    return Array.from({ length: 25 }, (_, idx) => {
-      const ref = new Date(baseDate);
-      ref.setDate(baseDate.getDate() - idx);
-      ref.setHours(12, 0, 0, 0);
+    baseDate.setHours(12, 0, 0, 0);
 
-      const source = hourlyRows[(idx * 2) % hourlyRows.length];
-      const generation = Number((source.generationActual * (0.92 + (idx % 5) * 0.015)).toFixed(1));
-      const load = Number((source.loadActual * (0.9 + (idx % 4) * 0.02)).toFixed(1));
-      const storageIn = Number((Math.max(source.storageActual, 0) * (0.9 + (idx % 3) * 0.04)).toFixed(1));
-      const storageOut = Number((Math.max(-source.storageActual, 0) * (0.88 + (idx % 4) * 0.03)).toFixed(1));
+    // 先由舊到新計算，讓儲能存入可以累積到隔天餘額
+    const ascRows: Array<{
+      dateLabel: string;
+      generation: number;
+      load: number;
+      storageIn: number;
+      storageBalance: number;
+      storageOut: number;
+      contractMatched: number;
+      totalMatched: number;
+    }> = [];
+
+    let carryBalance = 6;
+    const dayRefs = Array.from({ length: totalDays }, (_, idx) => {
+      const ref = new Date(baseDate);
+      ref.setDate(baseDate.getDate() - (totalDays - 1 - idx));
+      return ref;
+    });
+
+    dayRefs.forEach((ref, idx) => {
+      const source = hourlyRows[(idx * 3) % hourlyRows.length];
+      const generation = Number((source.generationActual * (0.95 + (idx % 5) * 0.02)).toFixed(1));
+      const load = Number((source.loadActual * (0.92 + (idx % 4) * 0.025)).toFixed(1));
+
+      // 發電端超過用電端時，優先提高儲能存入
+      const surplus = Math.max(generation - load, 0);
+      const storageIn = Number((surplus * 0.62).toFixed(1));
+
+      // 當日可動用餘額 = 前日結餘 + 今日存入
+      const availableBalance = Number((carryBalance + storageIn).toFixed(1));
+
+      // 提領量受當日餘額上限限制
+      const deficit = Math.max(load - generation, 0);
+      const desiredOut = deficit * 0.5;
+      const storageOut = Number(Math.min(availableBalance, desiredOut).toFixed(1));
+
+      const endBalance = Number((availableBalance - storageOut).toFixed(1));
+      carryBalance = endBalance;
+
       const contractMatched = Number(Math.min(generation, load * 0.35).toFixed(1));
       const totalMatched = Number((storageOut + contractMatched).toFixed(1));
-      return {
+
+      ascRows.push({
         dateLabel: ref.toISOString().slice(0, 10),
         generation,
         load,
         storageIn,
+        storageBalance: endBalance,
         storageOut,
         contractMatched,
         totalMatched,
-      };
+      });
     });
+
+    // UI 維持由新到舊顯示
+    return ascRows.reverse();
   }, [hourlyRows]);
 
   const sankeyDisplayDateText = useMemo(() => `日期：${selectedSankeyDate}`, [selectedSankeyDate]);
@@ -466,6 +503,7 @@ export default function SettlementPreSettlementPage() {
                       儲能存入
                     </button>
                   </th>
+                  <th className="px-3 py-2 text-right font-bold">儲能餘額</th>
                   <th className="px-3 py-2 text-right font-bold">
                     <button
                       type="button"
@@ -523,6 +561,9 @@ export default function SettlementPreSettlementPage() {
                       >
                         {row.storageIn.toFixed(1)}
                       </button>
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums font-semibold text-emerald-700">
+                      {row.storageBalance.toFixed(1)}
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums">
                       <button
