@@ -10,6 +10,7 @@ import DashboardAgentAggregation from '@/components/DashboardAgentAggregation';
 import DashboardRealTimeGeneration from '@/components/DashboardRealTimeGeneration';
 import DeclarationPlanPage from '@/components/DeclarationPlanPage';
 import SettlementPreSettlementPage from '@/components/SettlementPreSettlementPage';
+import SettlementMonthlyPage from '@/components/SettlementMonthlyPage';
 import RegistrationOverview from '@/components/RegistrationOverview';
 
 function MainContent() {
@@ -37,12 +38,7 @@ function MainContent() {
           {currentView === 'dashboard-realtime-generation' && <DashboardRealTimeGeneration />}
           {currentView === 'declaration-plan' && <DeclarationPlanPage />}
           {currentView === 'settlement-pre' && <SettlementPreSettlementPage />}
-          {currentView === 'settlement-monthly' && (
-            <SettlementPreSettlementPage
-              pageHeading="4.2 月結算 - 桑基匹配圖（由簡到繁示範）"
-              defaultStyleMode="c"
-            />
-          )}
+          {currentView === 'settlement-monthly' && <SettlementMonthlyPage />}
         </main>
       </div>
 
