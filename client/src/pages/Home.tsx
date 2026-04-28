@@ -37,6 +37,12 @@ function MainContent() {
           {currentView === 'dashboard-realtime-generation' && <DashboardRealTimeGeneration />}
           {currentView === 'declaration-plan' && <DeclarationPlanPage />}
           {currentView === 'settlement-pre' && <SettlementPreSettlementPage />}
+          {currentView === 'settlement-monthly' && (
+            <SettlementPreSettlementPage
+              pageHeading="4.2 月結算 - 桑基匹配圖（由簡到繁示範）"
+              defaultStyleMode="c"
+            />
+          )}
         </main>
       </div>
 

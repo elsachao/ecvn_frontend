@@ -56,7 +56,7 @@ const navModules: ModuleItem[] = [
     label: '4. 結算作業',
     subItems: [
       { id: 'set-4-1', label: '4.1 預結算', view: 'settlement-pre' },
-      { id: 'set-4-2', label: '4.2 月結算' },
+      { id: 'set-4-2', label: '4.2 月結算', view: 'settlement-monthly' },
     ],
   },
   {
@@ -84,7 +84,7 @@ export default function Sidebar() {
   const { isSidebarOpen, currentView, setCurrentView, goToRegistrationOverview, goDeclarationPlanSection, declarationPlanSection } =
     useRegistration();
   // 控制哪些模組是展開的
-  const [openModules, setOpenModules] = useState<string[]>(['dashboard']);
+  const [openModules, setOpenModules] = useState<string[]>(['dashboard', 'settlement']);
   // 側欄縮小時，控制右側彈出子選單
   const [collapsedPopoverModule, setCollapsedPopoverModule] = useState<string | null>(null);
 

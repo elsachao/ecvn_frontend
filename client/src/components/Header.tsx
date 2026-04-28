@@ -62,6 +62,8 @@ export default function Header() {
           ? '3. 申報計畫'
           : currentView === 'settlement-pre'
             ? '4.1 預結算'
+            : currentView === 'settlement-monthly'
+              ? '4.2 月結算'
           : registrationScreen === 'overview'
             ? '註冊申請總覽'
             : getStepTitle(step);

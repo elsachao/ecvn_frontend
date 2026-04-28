@@ -87,12 +87,20 @@ type SankeyStyleMode = 'ab' | 'c';
 type SankeyGranularity = 'summary4h' | 'detail24h';
 type SankeyFlowView = 'main' | 'charge' | 'discharge';
 
+interface SettlementPreSettlementPageProps {
+  pageHeading?: string;
+  defaultStyleMode?: SankeyStyleMode;
+}
+
 function pickRowsByGranularity(rows: HourRow[], granularity: SankeyGranularity): HourRow[] {
   if (granularity === 'detail24h') return rows;
   return rows.filter((r) => r.hour % 4 === 0);
 }
 
-export default function SettlementPreSettlementPage() {
+export default function SettlementPreSettlementPage({
+  pageHeading = '4.1 預結算 - 桑基匹配圖',
+  defaultStyleMode = 'ab',
+}: SettlementPreSettlementPageProps) {
   const hourlyRows = useMemo(() => buildHourlyRowsByDate(new Date().toISOString().slice(0, 10)), []);
   const now = useMemo(() => new Date(), []);
   const [sankeyDatePreset, setSankeyDatePreset] = useState<'7d' | '30d' | 'all'>('7d');
@@ -210,7 +218,7 @@ export default function SettlementPreSettlementPage() {
     [hourlyRows]
   );
 
-  const [styleMode, setStyleMode] = useState<SankeyStyleMode>('ab');
+  const [styleMode, setStyleMode] = useState<SankeyStyleMode>(defaultStyleMode);
   const [granularity, setGranularity] = useState<SankeyGranularity>('summary4h');
   const [sankeyFlowView, setSankeyFlowView] = useState<SankeyFlowView>('main');
   const [showGeneratorMeterId, setShowGeneratorMeterId] = useState(true);
@@ -483,7 +491,7 @@ export default function SettlementPreSettlementPage() {
       </section>
 
       <section className="rounded-2xl border border-slate-300 bg-white p-5 shadow-sm">
-        <h3 className="text-lg font-bold text-slate-900">4.1 預結算 - 桑基匹配圖</h3>
+        <h3 className="text-lg font-bold text-slate-900">{pageHeading}</h3>
         <div className="mb-5 mt-4 rounded-2xl border border-slate-300 bg-white p-4 shadow-sm">
           <p className="mb-3 text-sm font-black text-slate-900">桑基匹配明細表（可點日期跳回桑基圖）</p>
           <div className="mb-3 flex flex-wrap items-end gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
@@ -757,8 +765,9 @@ export default function SettlementPreSettlementPage() {
             option={sankeyOption}
             style={{ height: '100%', width: '100%' }}
             onEvents={{
-              click: (params: { data?: { name?: string } }) => {
-                if (styleMode === 'c' && params.data?.name === 'ECVN合約與調節帳戶｜儲能調節帳戶') {
+              click: (params: { name?: string; dataType?: string; data?: { name?: string } }) => {
+                const nodeName = params.dataType === 'node' ? (params.data?.name ?? params.name) : params.data?.name ?? params.name;
+                if (styleMode === 'c' && nodeName === 'ECVN合約與調節帳戶｜儲能調節帳戶') {
                   setCExpanded((v) => !v);
                 }
               },
