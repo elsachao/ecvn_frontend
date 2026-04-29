@@ -4,9 +4,17 @@ import { useMemo, useState } from 'react';
 
 type GenerationDetailRow = {
   slot: string;
-  generation: number;
+  g1Name: string;
+  g1: number;
+  g2Name: string;
+  g2: number;
+  g3Name: string;
+  g3: number;
+  g4Name: string;
+  g4: number;
   toContract: number;
   toStorage: number;
+  total: number;
 };
 
 /** 4.2 月結算：五欄桑基（發電端／儲能餘額 → 合約數量／儲能 → 用電端／轉移量 → 成功匹配／存入／餘電） */
@@ -15,25 +23,54 @@ export default function SettlementMonthlyPage() {
   const [activeNode, setActiveNode] = useState<string | null>('發電端');
   const [openLeftDetail, setOpenLeftDetail] = useState(true);
   const [openRightDetail, setOpenRightDetail] = useState(true);
+  const [selectedSlot, setSelectedSlot] = useState('00:00');
 
   const generationRows: GenerationDetailRow[] = [
-    { slot: '00:00', generation: 140, toContract: 140, toStorage: 0 },
-    { slot: '04:00', generation: 160, toContract: 160, toStorage: 0 },
-    { slot: '08:00', generation: 150, toContract: 150, toStorage: 0 },
-    { slot: '12:00', generation: 240, toContract: 90, toStorage: 150 },
-    { slot: '16:00', generation: 180, toContract: 180, toStorage: 0 },
-    { slot: '20:00', generation: 130, toContract: 130, toStorage: 0 },
+    { slot: '00:00', g1Name: 'G1 太陽能A', g1: 30, g2Name: 'G2 太陽能B', g2: 36, g3Name: 'G3 風力A', g3: 34, g4Name: 'G4 生質能', g4: 40, toContract: 140, toStorage: 0, total: 140 },
+    { slot: '04:00', g1Name: 'G1 太陽能A', g1: 34, g2Name: 'G2 太陽能B', g2: 41, g3Name: 'G3 風力A', g3: 40, g4Name: 'G4 生質能', g4: 45, toContract: 160, toStorage: 0, total: 160 },
+    { slot: '08:00', g1Name: 'G1 太陽能A', g1: 32, g2Name: 'G2 太陽能B', g2: 39, g3Name: 'G3 風力A', g3: 37, g4Name: 'G4 生質能', g4: 42, toContract: 150, toStorage: 0, total: 150 },
+    { slot: '12:00', g1Name: 'G1 太陽能A', g1: 52, g2Name: 'G2 太陽能B', g2: 61, g3Name: 'G3 風力A', g3: 59, g4Name: 'G4 生質能', g4: 68, toContract: 90, toStorage: 150, total: 240 },
+    { slot: '16:00', g1Name: 'G1 太陽能A', g1: 38, g2Name: 'G2 太陽能B', g2: 46, g3Name: 'G3 風力A', g3: 44, g4Name: 'G4 生質能', g4: 52, toContract: 180, toStorage: 0, total: 180 },
+    { slot: '20:00', g1Name: 'G1 太陽能A', g1: 28, g2Name: 'G2 太陽能B', g2: 33, g3Name: 'G3 風力A', g3: 32, g4Name: 'G4 生質能', g4: 37, toContract: 130, toStorage: 0, total: 130 },
   ];
 
   const generationTotals = generationRows.reduce(
     (acc, row) => {
-      acc.generation += row.generation;
+      acc.g1 += row.g1;
+      acc.g2 += row.g2;
+      acc.g3 += row.g3;
+      acc.g4 += row.g4;
       acc.toContract += row.toContract;
       acc.toStorage += row.toStorage;
+      acc.total += row.total;
       return acc;
     },
-    { generation: 0, toContract: 0, toStorage: 0 },
+    { g1: 0, g2: 0, g3: 0, g4: 0, toContract: 0, toStorage: 0, total: 0 },
   );
+
+  const selectedSlotRow = generationRows.find((row) => row.slot === selectedSlot) ?? generationRows[0];
+  const splitRatios = [0.06, 0.06, 0.06, 0.06, 0.07, 0.07, 0.07, 0.07, 0.06, 0.06, 0.06, 0.06, 0.07, 0.07, 0.08, 0.09];
+  const slotHour = Number.parseInt(selectedSlotRow.slot.split(':')[0] ?? '0', 10);
+  const buildQuarterSeries = (base: number) => {
+    const values = splitRatios.map((ratio) => Math.round(base * ratio));
+    const diff = base - values.reduce((sum, value) => sum + value, 0);
+    values[values.length - 1] += diff;
+    return values;
+  };
+  const qG1 = buildQuarterSeries(selectedSlotRow.g1);
+  const qG2 = buildQuarterSeries(selectedSlotRow.g2);
+  const qG3 = buildQuarterSeries(selectedSlotRow.g3);
+  const qG4 = buildQuarterSeries(selectedSlotRow.g4);
+  const quarterRows = Array.from({ length: 16 }).map((_, idx) => {
+    const hour = slotHour + Math.floor(idx / 4);
+    const minute = (idx % 4) * 15;
+    const time = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+    const g1 = qG1[idx];
+    const g2 = qG2[idx];
+    const g3 = qG3[idx];
+    const g4 = qG4[idx];
+    return { time, g1, g2, g3, g4, total: g1 + g2 + g3 + g4 };
+  });
 
   const option = useMemo<EChartsOption>(() => {
     const edge = enlarge ? 52 : 44;
@@ -65,6 +102,7 @@ export default function SettlementMonthlyPage() {
       { source: '發電端', target: '餘電', value: 120, lineStyle: { color: '#ef4444' } },
       { source: '儲能餘額', target: '儲能', value: 150 },
       { source: '合約數量', target: '用電端', value: 650, lineStyle: { color: '#f97316' } },
+      { source: '合約數量', target: '餘電', value: 120, lineStyle: { color: '#ef4444' } },
       { source: '儲能', target: '用電端轉移量', value: 250, lineStyle: { color: '#f97316' } },
       { source: '儲能', target: '儲能存入量', value: 130, lineStyle: { color: '#a855f7' } },
       {
@@ -81,9 +119,19 @@ export default function SettlementMonthlyPage() {
       tooltip: {
         trigger: 'item',
         formatter: (p: unknown) => {
-          const item = p as { name?: string; dataType?: string; value?: number };
-          if (item.dataType === 'edge') return '';
-          return item.name ?? '';
+          const item = p as {
+            name?: string;
+            dataType?: string;
+            value?: number;
+            data?: { source?: string; target?: string; value?: number };
+          };
+          if (item.dataType === 'edge') {
+            const source = item.data?.source ?? '';
+            const target = item.data?.target ?? '';
+            const value = item.data?.value ?? item.value ?? 0;
+            return `${source} → ${target}<br/>流量：${value}`;
+          }
+          return `${item.name ?? ''}<br/>流量：${item.value ?? 0}`;
         },
       },
       series: [
@@ -161,16 +209,78 @@ export default function SettlementMonthlyPage() {
                   發電端左側明細（時段發電）{openLeftDetail ? '▲' : '▼'}
                 </button>
                 {openLeftDetail ? (
-                  <div className="mt-2 space-y-1 text-xs font-semibold text-slate-700">
-                    {generationRows.map((row) => (
-                      <div key={row.slot} className="flex items-center justify-between rounded bg-slate-50 px-2 py-1">
-                        <span>{row.slot}</span>
-                        <span>{row.generation}</span>
+                  <div className="mt-2 space-y-3 text-xs font-semibold text-slate-700">
+                    <div className="overflow-x-auto rounded border border-slate-200">
+                      <table className="min-w-[780px] text-xs">
+                        <thead className="bg-slate-100 text-slate-700">
+                          <tr>
+                            <th className="px-2 py-1 text-left">時段</th>
+                            <th className="px-2 py-1 text-right">G1（資源電號/名稱）</th>
+                            <th className="px-2 py-1 text-right">G2（資源電號/名稱）</th>
+                            <th className="px-2 py-1 text-right">G3（資源電號/名稱）</th>
+                            <th className="px-2 py-1 text-right">G4（資源電號/名稱）</th>
+                            <th className="px-2 py-1 text-right">總和</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {generationRows.map((row) => (
+                            <tr
+                              key={row.slot}
+                              onClick={() => setSelectedSlot(row.slot)}
+                              className={`cursor-pointer border-t border-slate-200 ${
+                                selectedSlot === row.slot ? 'bg-amber-50' : 'bg-white hover:bg-slate-50'
+                              }`}
+                            >
+                              <td className="px-2 py-1 font-bold">{row.slot}</td>
+                              <td className="px-2 py-1 text-right">{row.g1Name}：{row.g1}</td>
+                              <td className="px-2 py-1 text-right">{row.g2Name}：{row.g2}</td>
+                              <td className="px-2 py-1 text-right">{row.g3Name}：{row.g3}</td>
+                              <td className="px-2 py-1 text-right">{row.g4Name}：{row.g4}</td>
+                              <td className="px-2 py-1 text-right font-black">{row.total}</td>
+                            </tr>
+                          ))}
+                          <tr className="border-t border-slate-300 bg-slate-100 font-black text-slate-900">
+                            <td className="px-2 py-1">合計</td>
+                            <td className="px-2 py-1 text-right">{generationTotals.g1}</td>
+                            <td className="px-2 py-1 text-right">{generationTotals.g2}</td>
+                            <td className="px-2 py-1 text-right">{generationTotals.g3}</td>
+                            <td className="px-2 py-1 text-right">{generationTotals.g4}</td>
+                            <td className="px-2 py-1 text-right">{generationTotals.total}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="rounded border border-slate-200 bg-white p-2">
+                      <p className="pb-2 text-[11px] font-bold text-slate-600">
+                        點選時段 `{selectedSlot}` 的 15 分鐘明細（每 4 小時區間，共 16 筆）
+                      </p>
+                      <div className="max-h-52 overflow-y-auto rounded border border-slate-200">
+                        <table className="w-full text-[11px]">
+                          <thead className="sticky top-0 bg-slate-100 text-slate-700">
+                            <tr>
+                              <th className="px-2 py-1 text-left">時間</th>
+                              <th className="px-2 py-1 text-right">G1</th>
+                              <th className="px-2 py-1 text-right">G2</th>
+                              <th className="px-2 py-1 text-right">G3</th>
+                              <th className="px-2 py-1 text-right">G4</th>
+                              <th className="px-2 py-1 text-right">總和</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {quarterRows.map((row) => (
+                              <tr key={row.time} className="border-t border-slate-200">
+                                <td className="px-2 py-1">{row.time}</td>
+                                <td className="px-2 py-1 text-right">{row.g1}</td>
+                                <td className="px-2 py-1 text-right">{row.g2}</td>
+                                <td className="px-2 py-1 text-right">{row.g3}</td>
+                                <td className="px-2 py-1 text-right">{row.g4}</td>
+                                <td className="px-2 py-1 text-right font-bold">{row.total}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
-                    ))}
-                    <div className="flex items-center justify-between border-t border-slate-200 pt-2 text-slate-900">
-                      <span>合計</span>
-                      <span>{generationTotals.generation}</span>
                     </div>
                   </div>
                 ) : null}
