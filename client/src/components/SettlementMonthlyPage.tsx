@@ -2,35 +2,45 @@ import type { EChartsOption } from 'echarts';
 import ReactECharts from 'echarts-for-react';
 import { useMemo, useState } from 'react';
 
-/** 4.2 月結算：簡化四欄桑基（發電 → 儲能 → 用電 → 媒合成功），以 depth 固定欄位。 */
+/** 4.2 月結算：五欄桑基（發電端／儲能餘額 → 合約數量／儲能 → 用電端／轉移量 → 成功匹配／存入／餘電） */
 export default function SettlementMonthlyPage() {
   const [enlarge, setEnlarge] = useState(false);
 
   const option = useMemo<EChartsOption>(() => {
+    const labelCommon = {
+      color: '#0f172a',
+      fontSize: 10,
+      fontWeight: 700,
+      lineHeight: 14,
+      width: 96,
+      overflow: 'breakAll' as const,
+    };
+
     const nodes = [
-      { name: '發電｜太陽能組', depth: 0, itemStyle: { color: '#f59e0b' }, label: { position: 'left' as const } },
-      { name: '發電｜風力組', depth: 0, itemStyle: { color: '#ea580c' }, label: { position: 'left' as const } },
-      { name: '發電｜其他', depth: 0, itemStyle: { color: '#fb923c' }, label: { position: 'left' as const } },
-      { name: '儲能｜調節帳戶', depth: 1, itemStyle: { color: '#7c3aed' }, label: { position: 'inside' as const } },
-      { name: '用電｜契約戶甲', depth: 2, itemStyle: { color: '#2563eb' }, label: { position: 'right' as const } },
-      { name: '用電｜契約戶乙', depth: 2, itemStyle: { color: '#1d4ed8' }, label: { position: 'right' as const } },
-      { name: '用電｜契約戶丙', depth: 2, itemStyle: { color: '#3b82f6' }, label: { position: 'right' as const } },
-      { name: '媒合成功', depth: 3, itemStyle: { color: '#059669' }, label: { position: 'right' as const } },
+      { name: '發電端', depth: 0, itemStyle: { color: '#f59e0b' }, label: { ...labelCommon, position: 'left' as const } },
+      { name: '儲能餘額', depth: 0, itemStyle: { color: '#0f766e' }, label: { ...labelCommon, position: 'left' as const } },
+      { name: '合約數量', depth: 1, itemStyle: { color: '#4f46e5' }, label: { ...labelCommon, position: 'inside' as const } },
+      { name: '儲能', depth: 1, itemStyle: { color: '#7c3aed' }, label: { ...labelCommon, position: 'inside' as const } },
+      { name: '用電端', depth: 2, itemStyle: { color: '#2563eb' }, label: { ...labelCommon, position: 'right' as const } },
+      { name: '用電端轉移量', depth: 2, itemStyle: { color: '#1d4ed8' }, label: { ...labelCommon, position: 'right' as const } },
+      { name: '成功匹配量', depth: 3, itemStyle: { color: '#059669' }, label: { ...labelCommon, position: 'right' as const } },
+      { name: '儲能存入量', depth: 3, itemStyle: { color: '#6366f1' }, label: { ...labelCommon, position: 'right' as const } },
+      { name: '餘電', depth: 3, itemStyle: { color: '#ea580c' }, label: { ...labelCommon, position: 'right' as const } },
     ];
 
     const links = [
-      { source: '發電｜太陽能組', target: '儲能｜調節帳戶', value: 100 },
-      { source: '發電｜太陽能組', target: '用電｜契約戶甲', value: 200 },
-      { source: '發電｜風力組', target: '儲能｜調節帳戶', value: 120 },
-      { source: '發電｜風力組', target: '用電｜契約戶乙', value: 160 },
-      { source: '發電｜其他', target: '儲能｜調節帳戶', value: 80 },
-      { source: '發電｜其他', target: '用電｜契約戶丙', value: 140 },
-      { source: '儲能｜調節帳戶', target: '用電｜契約戶甲', value: 50 },
-      { source: '儲能｜調節帳戶', target: '用電｜契約戶乙', value: 100 },
-      { source: '儲能｜調節帳戶', target: '用電｜契約戶丙', value: 150 },
-      { source: '用電｜契約戶甲', target: '媒合成功', value: 250 },
-      { source: '用電｜契約戶乙', target: '媒合成功', value: 260 },
-      { source: '用電｜契約戶丙', target: '媒合成功', value: 290 },
+      { source: '發電端', target: '合約數量', value: 680 },
+      { source: '發電端', target: '儲能', value: 220 },
+      { source: '發電端', target: '餘電', value: 100 },
+      { source: '儲能餘額', target: '合約數量', value: 60 },
+      { source: '儲能餘額', target: '儲能', value: 90 },
+      { source: '合約數量', target: '用電端', value: 740 },
+      { source: '儲能', target: '用電端轉移量', value: 200 },
+      { source: '儲能', target: '儲能存入量', value: 110 },
+      { source: '用電端', target: '成功匹配量', value: 580 },
+      { source: '用電端', target: '餘電', value: 160 },
+      { source: '用電端轉移量', target: '成功匹配量', value: 150 },
+      { source: '用電端轉移量', target: '餘電', value: 50 },
     ];
 
     return {
@@ -39,17 +49,19 @@ export default function SettlementMonthlyPage() {
       series: [
         {
           type: 'sankey',
-          left: 12,
-          right: 24,
-          top: 16,
-          bottom: 16,
-          nodeWidth: 14,
-          nodeGap: 10,
+          left: 28,
+          right: 148,
+          top: 28,
+          bottom: 28,
+          nodeWidth: 12,
+          nodeGap: 14,
           nodeAlign: 'justify',
-          layoutIterations: 32,
+          layoutIterations: 48,
           emphasis: { focus: 'adjacency' },
-          lineStyle: { color: 'source', curveness: 0.35, opacity: 0.55 },
-          label: { color: '#0f172a', fontSize: 11, fontWeight: 700, overflow: 'breakAll' },
+          draggable: true,
+          roam: true,
+          lineStyle: { color: 'source', curveness: 0.32, opacity: 0.55 },
+          label: labelCommon,
           data: nodes,
           links,
         },
@@ -62,9 +74,9 @@ export default function SettlementMonthlyPage() {
       <section className="rounded-2xl border border-slate-300 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h3 className="text-lg font-bold text-slate-900">4.2 月結算｜能源流動總覽（簡化桑基）</h3>
+            <h3 className="text-lg font-bold text-slate-900">4.2 月結算｜能源流動總覽（桑基）</h3>
             <p className="mt-2 max-w-3xl text-sm font-semibold text-slate-600">
-              由左而右依序為：發電來源 → 儲能調節 → 用電端彙整 → 最右為本月媒合成功總出口。數字為示範用假資料，後續可改接月結算 API。
+              左欄：發電端、儲能餘額；中左：合約數量、儲能；中右：用電端（承接合約）、用電端轉移量；最右：成功匹配量、儲能存入量、餘電。數字為示範假資料，可改接月結算 API。
             </p>
           </div>
           <button
@@ -76,14 +88,14 @@ export default function SettlementMonthlyPage() {
           </button>
         </div>
 
-        <div className="mt-4 grid grid-cols-4 gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center text-[10px] font-black text-slate-600 sm:text-xs">
-          <span className="rounded-md bg-amber-50 py-1 text-amber-900">① 發電</span>
-          <span className="rounded-md bg-violet-50 py-1 text-violet-900">② 儲能</span>
-          <span className="rounded-md bg-blue-50 py-1 text-blue-900">③ 用電</span>
-          <span className="rounded-md bg-emerald-50 py-1 text-emerald-900">④ 媒合成功</span>
+        <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center text-[10px] font-black text-slate-600 sm:grid-cols-5 sm:text-xs">
+          <span className="rounded-md bg-amber-50 py-1 text-amber-900">① 發電端／儲能餘額</span>
+          <span className="rounded-md bg-indigo-50 py-1 text-indigo-900">② 合約數量／儲能</span>
+          <span className="rounded-md bg-blue-50 py-1 text-blue-900">③ 用電端／轉移量</span>
+          <span className="rounded-md bg-emerald-50 py-1 text-emerald-900 sm:col-span-2">④ 成功匹配／存入／餘電</span>
         </div>
 
-        <div className={`mt-4 ${enlarge ? 'h-[520px]' : 'h-[380px]'} rounded-xl border border-slate-200 bg-white p-2`}>
+        <div className={`mt-4 ${enlarge ? 'h-[560px]' : 'h-[420px]'} min-h-[360px] rounded-xl border border-slate-200 bg-white p-2`}>
           <ReactECharts option={option} style={{ height: '100%', width: '100%' }} />
         </div>
       </section>
