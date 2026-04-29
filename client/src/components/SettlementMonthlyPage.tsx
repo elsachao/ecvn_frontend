@@ -2,9 +2,38 @@ import type { EChartsOption } from 'echarts';
 import ReactECharts from 'echarts-for-react';
 import { useMemo, useState } from 'react';
 
+type GenerationDetailRow = {
+  slot: string;
+  generation: number;
+  toContract: number;
+  toStorage: number;
+};
+
 /** 4.2 月結算：五欄桑基（發電端／儲能餘額 → 合約數量／儲能 → 用電端／轉移量 → 成功匹配／存入／餘電） */
 export default function SettlementMonthlyPage() {
   const [enlarge, setEnlarge] = useState(false);
+  const [activeNode, setActiveNode] = useState<string | null>('發電端');
+  const [openLeftDetail, setOpenLeftDetail] = useState(true);
+  const [openRightDetail, setOpenRightDetail] = useState(true);
+
+  const generationRows: GenerationDetailRow[] = [
+    { slot: '00:00', generation: 140, toContract: 140, toStorage: 0 },
+    { slot: '04:00', generation: 160, toContract: 160, toStorage: 0 },
+    { slot: '08:00', generation: 150, toContract: 150, toStorage: 0 },
+    { slot: '12:00', generation: 240, toContract: 90, toStorage: 150 },
+    { slot: '16:00', generation: 180, toContract: 180, toStorage: 0 },
+    { slot: '20:00', generation: 130, toContract: 130, toStorage: 0 },
+  ];
+
+  const generationTotals = generationRows.reduce(
+    (acc, row) => {
+      acc.generation += row.generation;
+      acc.toContract += row.toContract;
+      acc.toStorage += row.toStorage;
+      return acc;
+    },
+    { generation: 0, toContract: 0, toStorage: 0 },
+  );
 
   const option = useMemo<EChartsOption>(() => {
     const edge = enlarge ? 52 : 44;
@@ -80,6 +109,13 @@ export default function SettlementMonthlyPage() {
     };
   }, [enlarge]);
 
+  const chartEvents = {
+    click: (params: unknown) => {
+      const node = params as { dataType?: string; name?: string };
+      if (node.dataType === 'node' && node.name) setActiveNode(node.name);
+    },
+  };
+
   return (
     <div className="space-y-6 pb-8 text-slate-800">
       <section className="rounded-2xl border border-slate-300 bg-white p-5 shadow-sm">
@@ -108,8 +144,83 @@ export default function SettlementMonthlyPage() {
 
         <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white p-2">
           <div className={`${enlarge ? 'h-[620px] min-w-[1100px]' : 'h-[520px] min-w-[1020px]'}`}>
-            <ReactECharts option={option} style={{ height: '100%', width: '100%' }} opts={{ renderer: 'canvas' }} />
+            <ReactECharts option={option} style={{ height: '100%', width: '100%' }} opts={{ renderer: 'canvas' }} onEvents={chartEvents} />
           </div>
+        </div>
+
+        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <p className="text-xs font-bold text-slate-600">可點擊節點開啟明細（目前先支援「發電端」左右展開）。</p>
+          {activeNode === '發電端' ? (
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              <div className="rounded-lg border border-slate-200 bg-white p-3">
+                <button
+                  type="button"
+                  onClick={() => setOpenLeftDetail((v) => !v)}
+                  className="w-full rounded-md bg-amber-50 px-3 py-2 text-left text-sm font-bold text-amber-900"
+                >
+                  發電端左側明細（時段發電）{openLeftDetail ? '▲' : '▼'}
+                </button>
+                {openLeftDetail ? (
+                  <div className="mt-2 space-y-1 text-xs font-semibold text-slate-700">
+                    {generationRows.map((row) => (
+                      <div key={row.slot} className="flex items-center justify-between rounded bg-slate-50 px-2 py-1">
+                        <span>{row.slot}</span>
+                        <span>{row.generation}</span>
+                      </div>
+                    ))}
+                    <div className="flex items-center justify-between border-t border-slate-200 pt-2 text-slate-900">
+                      <span>合計</span>
+                      <span>{generationTotals.generation}</span>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="rounded-lg border border-slate-200 bg-white p-3">
+                <button
+                  type="button"
+                  onClick={() => setOpenRightDetail((v) => !v)}
+                  className="w-full rounded-md bg-emerald-50 px-3 py-2 text-left text-sm font-bold text-emerald-900"
+                >
+                  發電端右側明細（流向拆分）{openRightDetail ? '▲' : '▼'}
+                </button>
+                {openRightDetail ? (
+                  <div className="mt-2 space-y-1 text-xs font-semibold text-slate-700">
+                    {generationRows.map((row) => (
+                      <div key={`${row.slot}-flow`} className="rounded bg-slate-50 px-2 py-1">
+                        <div className="flex items-center justify-between">
+                          <span>{row.slot} → 合約數量</span>
+                          <span>{row.toContract}</span>
+                        </div>
+                        {row.toStorage > 0 ? (
+                          <div className="mt-1 flex items-center justify-between text-purple-700">
+                            <span>{row.slot} → 儲能（10:00-14:00）</span>
+                            <span>{row.toStorage}</span>
+                          </div>
+                        ) : null}
+                      </div>
+                    ))}
+                    <div className="border-t border-slate-200 pt-2 text-slate-900">
+                      <div className="flex items-center justify-between">
+                        <span>流向合約總量</span>
+                        <span>{generationTotals.toContract}</span>
+                      </div>
+                      <div className="mt-1 flex items-center justify-between">
+                        <span>流向儲能總量（10:00-14:00）</span>
+                        <span>{generationTotals.toStorage}</span>
+                      </div>
+                      <div className="mt-1 flex items-center justify-between text-red-600">
+                        <span>流向餘電</span>
+                        <span>120</span>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ) : (
+            <p className="mt-3 text-sm font-semibold text-slate-600">目前先開放「發電端」明細，請點選「發電端」節點查看。</p>
+          )}
         </div>
       </section>
     </div>
