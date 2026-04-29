@@ -10,11 +10,11 @@ export default function SettlementMonthlyPage() {
     const edge = enlarge ? 52 : 44;
     const labelCommon = {
       color: '#0f172a',
-      fontSize: enlarge ? 22 : 18,
+      fontSize: enlarge ? 11 : 9,
       fontWeight: 700,
-      lineHeight: enlarge ? 30 : 24,
-      width: enlarge ? 180 : 150,
-      distance: 8,
+      lineHeight: 15,
+      width: enlarge ? 108 : 84,
+      distance: 6,
       overflow: 'breakAll' as const,
     };
 
@@ -33,18 +33,18 @@ export default function SettlementMonthlyPage() {
     const links = [
       { source: '發電端', target: '合約數量', value: 650 },
       { source: '發電端', target: '儲能', value: 230 },
-      { source: '發電端', target: '餘電', value: 120, lineStyle: { color: '#3b82f6' } },
+      { source: '發電端', target: '餘電', value: 120, lineStyle: { color: '#ef4444' } },
       { source: '儲能餘額', target: '儲能', value: 150 },
-      { source: '合約數量', target: '用電端', value: 650, lineStyle: { color: '#f97316' } },
+      { source: '合約數量', target: '用電端', value: 650, lineStyle: { color: '#22c55e' } },
       { source: '儲能', target: '用電端轉移量', value: 250 },
       { source: '儲能', target: '儲能存入量', value: 130, lineStyle: { color: '#a855f7' } },
       {
         source: '用電端',
         target: '成功匹配量',
         value: 650,
-        lineStyle: { color: '#22c55e' },
+        lineStyle: { color: '#f97316' },
       },
-      { source: '用電端轉移量', target: '成功匹配量', value: 250, lineStyle: { color: '#22c55e' } },
+      { source: '用電端轉移量', target: '成功匹配量', value: 250, lineStyle: { color: '#f97316' } },
     ];
 
     return {
