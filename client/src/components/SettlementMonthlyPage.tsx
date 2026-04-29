@@ -21,10 +21,10 @@ export default function SettlementMonthlyPage() {
     const nodes = [
       { name: '發電端', depth: 0, itemStyle: { color: '#f59e0b' }, label: { ...labelCommon, position: 'left' as const, distance: 8 } },
       { name: '儲能餘額', depth: 0, itemStyle: { color: '#0f766e' }, label: { ...labelCommon, position: 'left' as const, distance: 8 } },
-      { name: '合約數量', depth: 1, itemStyle: { color: '#4f46e5' }, label: { ...labelCommon, position: 'inside' as const } },
+      { name: '合約數量', depth: 1, itemStyle: { color: '#92400e' }, label: { ...labelCommon, position: 'inside' as const } },
       { name: '儲能', depth: 1, itemStyle: { color: '#7c3aed' }, label: { ...labelCommon, position: 'inside' as const } },
-      { name: '用電端', depth: 2, itemStyle: { color: '#2563eb' }, label: { ...labelCommon, position: 'right' as const, distance: 10 } },
-      { name: '用電端轉移量', depth: 2, itemStyle: { color: '#1d4ed8' }, label: { ...labelCommon, position: 'right' as const, distance: 10 } },
+      { name: '用電端', depth: 2, itemStyle: { color: '#f97316' }, label: { ...labelCommon, position: 'right' as const, distance: 10 } },
+      { name: '用電端轉移量', depth: 2, itemStyle: { color: '#f97316' }, label: { ...labelCommon, position: 'right' as const, distance: 10 } },
       { name: '成功匹配量', depth: 3, itemStyle: { color: '#059669' }, label: { ...labelCommon, position: 'right' as const, distance: 12 } },
       { name: '儲能存入量', depth: 3, itemStyle: { color: '#6366f1' }, label: { ...labelCommon, position: 'right' as const, distance: 12 } },
       { name: '餘電', depth: 3, itemStyle: { color: '#ea580c' }, label: { ...labelCommon, position: 'right' as const, distance: 12 } },
@@ -35,16 +35,16 @@ export default function SettlementMonthlyPage() {
       { source: '發電端', target: '儲能', value: 230 },
       { source: '發電端', target: '餘電', value: 120, lineStyle: { color: '#ef4444' } },
       { source: '儲能餘額', target: '儲能', value: 150 },
-      { source: '合約數量', target: '用電端', value: 650, lineStyle: { color: '#22c55e' } },
+      { source: '合約數量', target: '用電端', value: 650, lineStyle: { color: '#f97316' } },
       { source: '儲能', target: '用電端轉移量', value: 250 },
       { source: '儲能', target: '儲能存入量', value: 130, lineStyle: { color: '#a855f7' } },
       {
         source: '用電端',
         target: '成功匹配量',
         value: 650,
-        lineStyle: { color: '#f97316' },
+        lineStyle: { color: '#22c55e' },
       },
-      { source: '用電端轉移量', target: '成功匹配量', value: 250, lineStyle: { color: '#f97316' } },
+      { source: '用電端轉移量', target: '成功匹配量', value: 250, lineStyle: { color: '#22c55e' } },
     ];
 
     return {
