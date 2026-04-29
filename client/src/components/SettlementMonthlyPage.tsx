@@ -36,7 +36,7 @@ export default function SettlementMonthlyPage() {
       { source: '發電端', target: '餘電', value: 120, lineStyle: { color: '#ef4444' } },
       { source: '儲能餘額', target: '儲能', value: 150 },
       { source: '合約數量', target: '用電端', value: 650, lineStyle: { color: '#f97316' } },
-      { source: '儲能', target: '用電端轉移量', value: 250 },
+      { source: '儲能', target: '用電端轉移量', value: 250, lineStyle: { color: '#f97316' } },
       { source: '儲能', target: '儲能存入量', value: 130, lineStyle: { color: '#a855f7' } },
       {
         source: '用電端',
