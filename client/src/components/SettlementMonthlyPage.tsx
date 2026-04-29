@@ -7,56 +7,62 @@ export default function SettlementMonthlyPage() {
   const [enlarge, setEnlarge] = useState(false);
 
   const option = useMemo<EChartsOption>(() => {
+    const edge = enlarge ? 52 : 44;
     const labelCommon = {
       color: '#0f172a',
-      fontSize: 10,
+      fontSize: enlarge ? 11 : 9,
       fontWeight: 700,
-      lineHeight: 14,
-      width: 96,
+      lineHeight: 15,
+      width: enlarge ? 108 : 84,
+      distance: 6,
       overflow: 'breakAll' as const,
     };
 
     const nodes = [
-      { name: '發電端', depth: 0, itemStyle: { color: '#f59e0b' }, label: { ...labelCommon, position: 'left' as const } },
-      { name: '儲能餘額', depth: 0, itemStyle: { color: '#0f766e' }, label: { ...labelCommon, position: 'left' as const } },
+      { name: '發電端', depth: 0, itemStyle: { color: '#f59e0b' }, label: { ...labelCommon, position: 'left' as const, distance: 8 } },
+      { name: '儲能餘額', depth: 0, itemStyle: { color: '#0f766e' }, label: { ...labelCommon, position: 'left' as const, distance: 8 } },
       { name: '合約數量', depth: 1, itemStyle: { color: '#4f46e5' }, label: { ...labelCommon, position: 'inside' as const } },
       { name: '儲能', depth: 1, itemStyle: { color: '#7c3aed' }, label: { ...labelCommon, position: 'inside' as const } },
-      { name: '用電端', depth: 2, itemStyle: { color: '#2563eb' }, label: { ...labelCommon, position: 'right' as const } },
-      { name: '用電端轉移量', depth: 2, itemStyle: { color: '#1d4ed8' }, label: { ...labelCommon, position: 'right' as const } },
-      { name: '成功匹配量', depth: 3, itemStyle: { color: '#059669' }, label: { ...labelCommon, position: 'right' as const } },
-      { name: '儲能存入量', depth: 3, itemStyle: { color: '#6366f1' }, label: { ...labelCommon, position: 'right' as const } },
-      { name: '餘電', depth: 3, itemStyle: { color: '#ea580c' }, label: { ...labelCommon, position: 'right' as const } },
+      { name: '用電端', depth: 2, itemStyle: { color: '#2563eb' }, label: { ...labelCommon, position: 'right' as const, distance: 10 } },
+      { name: '用電端轉移量', depth: 2, itemStyle: { color: '#1d4ed8' }, label: { ...labelCommon, position: 'right' as const, distance: 10 } },
+      { name: '成功匹配量', depth: 3, itemStyle: { color: '#059669' }, label: { ...labelCommon, position: 'right' as const, distance: 12 } },
+      { name: '儲能存入量', depth: 3, itemStyle: { color: '#6366f1' }, label: { ...labelCommon, position: 'right' as const, distance: 12 } },
+      { name: '餘電', depth: 3, itemStyle: { color: '#ea580c' }, label: { ...labelCommon, position: 'right' as const, distance: 12 } },
     ];
 
     const links = [
-      { source: '發電端', target: '合約數量', value: 680 },
-      { source: '發電端', target: '儲能', value: 220 },
-      { source: '發電端', target: '餘電', value: 100 },
-      { source: '儲能餘額', target: '合約數量', value: 60 },
-      { source: '儲能餘額', target: '儲能', value: 90 },
-      { source: '合約數量', target: '用電端', value: 740 },
-      { source: '儲能', target: '用電端轉移量', value: 200 },
-      { source: '儲能', target: '儲能存入量', value: 110 },
-      { source: '用電端', target: '成功匹配量', value: 580 },
-      { source: '用電端', target: '餘電', value: 160 },
-      { source: '用電端轉移量', target: '成功匹配量', value: 150 },
-      { source: '用電端轉移量', target: '餘電', value: 50 },
+      { source: '發電端', target: '合約數量', value: 650 },
+      { source: '發電端', target: '儲能', value: 230 },
+      { source: '發電端', target: '餘電', value: 120 },
+      { source: '儲能餘額', target: '儲能', value: 150 },
+      { source: '合約數量', target: '用電端', value: 650 },
+      { source: '儲能', target: '用電端轉移量', value: 250 },
+      { source: '儲能', target: '儲能存入量', value: 130 },
+      { source: '用電端', target: '成功匹配量', value: 650 },
+      { source: '用電端轉移量', target: '成功匹配量', value: 250 },
     ];
 
     return {
       animation: false,
-      tooltip: { trigger: 'item' },
+      tooltip: {
+        trigger: 'item',
+        formatter: (p: unknown) => {
+          const item = p as { name?: string; dataType?: string; value?: number };
+          if (item.dataType === 'edge') return '';
+          return item.name ?? '';
+        },
+      },
       series: [
         {
           type: 'sankey',
-          left: 28,
-          right: 148,
-          top: 28,
-          bottom: 28,
-          nodeWidth: 12,
-          nodeGap: 14,
+          left: edge,
+          right: enlarge ? 220 : 200,
+          top: edge,
+          bottom: edge,
+          nodeWidth: 10,
+          nodeGap: enlarge ? 26 : 22,
           nodeAlign: 'justify',
-          layoutIterations: 48,
+          layoutIterations: 64,
           emphasis: { focus: 'adjacency' },
           draggable: true,
           roam: true,
@@ -67,7 +73,7 @@ export default function SettlementMonthlyPage() {
         },
       ],
     };
-  }, []);
+  }, [enlarge]);
 
   return (
     <div className="space-y-6 pb-8 text-slate-800">
@@ -76,7 +82,7 @@ export default function SettlementMonthlyPage() {
           <div>
             <h3 className="text-lg font-bold text-slate-900">4.2 月結算｜能源流動總覽（桑基）</h3>
             <p className="mt-2 max-w-3xl text-sm font-semibold text-slate-600">
-              左欄：發電端、儲能餘額；中左：合約數量、儲能；中右：用電端（承接合約）、用電端轉移量；最右：成功匹配量、儲能存入量、餘電。數字為示範假資料，可改接月結算 API。
+              儲能餘額僅流入第二層「儲能」；「餘電」僅由「發電端」直接流入。第三層「用電端」與「用電端轉移量」僅接至最右「成功匹配量」，不連餘電。數字為示範假資料，可改接月結算 API。圖表可左右捲動或拖曳縮放，避免標籤被裁切。
             </p>
           </div>
           <button
@@ -95,8 +101,10 @@ export default function SettlementMonthlyPage() {
           <span className="rounded-md bg-emerald-50 py-1 text-emerald-900 sm:col-span-2">④ 成功匹配／存入／餘電</span>
         </div>
 
-        <div className={`mt-4 ${enlarge ? 'h-[560px]' : 'h-[420px]'} min-h-[360px] rounded-xl border border-slate-200 bg-white p-2`}>
-          <ReactECharts option={option} style={{ height: '100%', width: '100%' }} />
+        <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white p-2">
+          <div className={`${enlarge ? 'h-[580px] min-w-[1040px]' : 'h-[480px] min-w-[960px]'}`}>
+            <ReactECharts option={option} style={{ height: '100%', width: '100%' }} opts={{ renderer: 'canvas' }} />
+          </div>
         </div>
       </section>
     </div>
