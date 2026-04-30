@@ -17,6 +17,15 @@ type GenerationDetailRow = {
   total: number;
 };
 
+type StorageLedgerRow = {
+  date: string;
+  openingMWh: number;
+  chargeMWh: number;
+  dischargeMWh: number;
+  closingMWh: number;
+  isValid: boolean;
+};
+
 /** 4.2 月結算：五欄桑基（發電端／儲能餘額 → 合約數量／儲能 → 用電端／轉移量 → 成功匹配／存入／餘電） */
 export default function SettlementMonthlyPage() {
   const [enlarge, setEnlarge] = useState(false);
@@ -103,6 +112,25 @@ export default function SettlementMonthlyPage() {
     const g4 = qG4[idx];
     return { time, g1, g2, g3, g4, total: g1 + g2 + g3 + g4 };
   });
+
+  const storageLedgerRows: StorageLedgerRow[] = [
+    { date: '04/24', openingMWh: 56, chargeMWh: 14, dischargeMWh: 10, closingMWh: 60, isValid: true },
+    { date: '04/25', openingMWh: 60, chargeMWh: 16, dischargeMWh: 12, closingMWh: 64, isValid: true },
+    { date: '04/26', openingMWh: 64, chargeMWh: 12, dischargeMWh: 15, closingMWh: 61, isValid: true },
+    { date: '04/27', openingMWh: 61, chargeMWh: 18, dischargeMWh: 9, closingMWh: 70, isValid: true },
+    { date: '04/28', openingMWh: 70, chargeMWh: 9, dischargeMWh: 17, closingMWh: 62, isValid: true },
+    { date: '04/29', openingMWh: 62, chargeMWh: 15, dischargeMWh: 11, closingMWh: 66, isValid: true },
+    { date: '04/30', openingMWh: 66, chargeMWh: 13, dischargeMWh: 14, closingMWh: 65, isValid: true },
+  ];
+
+  const storageSummary = storageLedgerRows.reduce(
+    (acc, row) => {
+      if (row.isValid) acc.validDays += 1;
+      acc.totalClosingMWh += row.closingMWh;
+      return acc;
+    },
+    { validDays: 0, totalClosingMWh: 0 },
+  );
 
   const option = useMemo<EChartsOption>(() => {
     const edge = enlarge ? 52 : 44;
@@ -382,8 +410,51 @@ export default function SettlementMonthlyPage() {
                 ) : null}
               </div>
             </div>
+          ) : activeNode === '儲能餘額' ? (
+            <div className="mt-3 space-y-3">
+              <div className="rounded-lg border border-slate-200 bg-white p-3">
+                <p className="text-sm font-bold text-slate-800">儲能餘額近 7 天帳本（MWh）</p>
+                <div className="mt-2 overflow-x-auto rounded border border-slate-200">
+                  <table className="min-w-[720px] text-xs">
+                    <thead className="bg-slate-100 text-slate-700">
+                      <tr>
+                        <th className="px-2 py-1 text-left">日期</th>
+                        <th className="px-2 py-1 text-right">期初餘額</th>
+                        <th className="px-2 py-1 text-right">當日充入</th>
+                        <th className="px-2 py-1 text-right">當日放電</th>
+                        <th className="px-2 py-1 text-right">期末餘額</th>
+                        <th className="px-2 py-1 text-center">有效</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {storageLedgerRows.map((row) => (
+                        <tr key={row.date} className="border-t border-slate-200 bg-white">
+                          <td className="px-2 py-1 font-bold">{row.date}</td>
+                          <td className="px-2 py-1 text-right">{row.openingMWh}</td>
+                          <td className="px-2 py-1 text-right text-indigo-700">+{row.chargeMWh}</td>
+                          <td className="px-2 py-1 text-right text-orange-700">-{row.dischargeMWh}</td>
+                          <td className="px-2 py-1 text-right font-black">{row.closingMWh}</td>
+                          <td className="px-2 py-1 text-center">{row.isValid ? '是' : '否'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-lg border border-slate-200 bg-white p-3">
+                  <p className="text-xs font-bold text-slate-500">有效天數</p>
+                  <p className="mt-1 text-2xl font-black text-emerald-700">{storageSummary.validDays} 天</p>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-white p-3">
+                  <p className="text-xs font-bold text-slate-500">總電量（7 日期末合計）</p>
+                  <p className="mt-1 text-2xl font-black text-indigo-700">{storageSummary.totalClosingMWh} MWh</p>
+                </div>
+              </div>
+            </div>
           ) : (
-            <p className="mt-3 text-sm font-semibold text-slate-600">目前先開放「發電端」明細，請點選「發電端」節點查看。</p>
+            <p className="mt-3 text-sm font-semibold text-slate-600">目前可查看「發電端」與「儲能餘額」互動明細，請點選對應節點。</p>
           )}
         </div>
       </section>
