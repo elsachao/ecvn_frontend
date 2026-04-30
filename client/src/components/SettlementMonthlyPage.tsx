@@ -35,8 +35,11 @@ export default function SettlementMonthlyPage() {
   const [openRightDetail, setOpenRightDetail] = useState(true);
   const [openContractLeftDetail, setOpenContractLeftDetail] = useState(true);
   const [openContractRightDetail, setOpenContractRightDetail] = useState(true);
+  const [openStorageLeftDetail, setOpenStorageLeftDetail] = useState(true);
+  const [openStorageRightDetail, setOpenStorageRightDetail] = useState(true);
   const [selectedSlot, setSelectedSlot] = useState('00:00');
   const [selectedContractSlot, setSelectedContractSlot] = useState('00:00');
+  const [selectedStorageSlot, setSelectedStorageSlot] = useState('00:00');
   const flowToContractBySlot: Record<string, number> = {
     '00:00': 110,
     '04:00': 120,
@@ -122,6 +125,50 @@ export default function SettlementMonthlyPage() {
     },
     { totalMatchedGeneration: 0, l1: 0, l2: 0, l3: 0, unmatched: 0 },
   );
+  const storageTransferRows = [
+    { slot: '00:00', totalToLoadTransfer: 40, l1: 14, l2: 13, l3: 13, toStorageDeposit: 20 },
+    { slot: '04:00', totalToLoadTransfer: 40, l1: 13, l2: 13, l3: 14, toStorageDeposit: 20 },
+    { slot: '08:00', totalToLoadTransfer: 40, l1: 13, l2: 14, l3: 13, toStorageDeposit: 20 },
+    { slot: '12:00', totalToLoadTransfer: 35, l1: 12, l2: 12, l3: 11, toStorageDeposit: 20 },
+    { slot: '16:00', totalToLoadTransfer: 50, l1: 17, l2: 16, l3: 17, toStorageDeposit: 25 },
+    { slot: '20:00', totalToLoadTransfer: 45, l1: 15, l2: 15, l3: 15, toStorageDeposit: 25 },
+  ];
+  const storageTransferTotals = storageTransferRows.reduce(
+    (acc, row) => {
+      acc.totalToLoadTransfer += row.totalToLoadTransfer;
+      acc.l1 += row.l1;
+      acc.l2 += row.l2;
+      acc.l3 += row.l3;
+      acc.toStorageDeposit += row.toStorageDeposit;
+      return acc;
+    },
+    { totalToLoadTransfer: 0, l1: 0, l2: 0, l3: 0, toStorageDeposit: 0 },
+  );
+  const storageChargeQuarterRatios = [0.06, 0.06, 0.06, 0.06, 0.07, 0.07, 0.07, 0.07, 0.06, 0.06, 0.06, 0.06, 0.07, 0.07, 0.08, 0.09];
+  const buildStorageQuarterSeries = (base: number) => {
+    const values = storageChargeQuarterRatios.map((ratio) => Math.round(base * ratio));
+    const diff = base - values.reduce((sum, value) => sum + value, 0);
+    values[values.length - 1] += diff;
+    return values;
+  };
+  const storageChargeFromGenerationTotal = generationTotals.toStorage;
+  const storageChargeFromBalance7dTotal = 150;
+  const storageChargeSuccessTotal = storageChargeFromGenerationTotal + storageChargeFromBalance7dTotal;
+  const storageChargeFromGenerationQuarter = buildStorageQuarterSeries(storageChargeFromGenerationTotal);
+  const storageChargeFromBalanceQuarter = buildStorageQuarterSeries(storageChargeFromBalance7dTotal);
+  const storageChargeQuarterRows = Array.from({ length: 16 }).map((_, idx) => {
+    const hour = 10 + Math.floor(idx / 4);
+    const minute = (idx % 4) * 15;
+    const time = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+    const fromGeneration = storageChargeFromGenerationQuarter[idx];
+    const fromBalance = storageChargeFromBalanceQuarter[idx];
+    return {
+      time,
+      fromGeneration,
+      transferSuccess: fromGeneration + fromBalance,
+      fromBalance,
+    };
+  });
 
   const selectedSlotRow = generationRows.find((row) => row.slot === selectedSlot) ?? generationRows[0];
   const splitRatios = [0.06, 0.06, 0.06, 0.06, 0.07, 0.07, 0.07, 0.07, 0.06, 0.06, 0.06, 0.06, 0.07, 0.07, 0.08, 0.09];
@@ -161,6 +208,22 @@ export default function SettlementMonthlyPage() {
     const l3 = qL3[idx];
     const unmatched = qUnmatched[idx];
     return { time, totalMatchedGeneration: l1 + l2 + l3, l1, l2, l3, unmatched };
+  });
+  const selectedStorageTransferRow = storageTransferRows.find((row) => row.slot === selectedStorageSlot) ?? storageTransferRows[0];
+  const storageTransferSlotHour = Number.parseInt(selectedStorageTransferRow.slot.split(':')[0] ?? '0', 10);
+  const qStorageL1 = buildQuarterSeries(selectedStorageTransferRow.l1);
+  const qStorageL2 = buildQuarterSeries(selectedStorageTransferRow.l2);
+  const qStorageL3 = buildQuarterSeries(selectedStorageTransferRow.l3);
+  const qStorageDeposit = buildQuarterSeries(selectedStorageTransferRow.toStorageDeposit);
+  const storageTransferQuarterRows = Array.from({ length: 16 }).map((_, idx) => {
+    const hour = storageTransferSlotHour + Math.floor(idx / 4);
+    const minute = (idx % 4) * 15;
+    const time = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+    const l1 = qStorageL1[idx];
+    const l2 = qStorageL2[idx];
+    const l3 = qStorageL3[idx];
+    const toStorageDeposit = qStorageDeposit[idx];
+    return { time, totalToLoadTransfer: l1 + l2 + l3, l1, l2, l3, toStorageDeposit };
   });
 
   const storageLedgerRows: StorageLedgerRow[] = [
@@ -577,6 +640,162 @@ export default function SettlementMonthlyPage() {
                                 <td className="px-2 py-1 text-right">{row.l2}</td>
                                 <td className="px-2 py-1 text-right">{row.l3}</td>
                                 <td className="px-2 py-1 text-right text-red-600">{row.unmatched}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ) : activeNode === '儲能' ? (
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              <div className="rounded-lg border border-slate-200 bg-white p-3">
+                <button
+                  type="button"
+                  onClick={() => setOpenStorageLeftDetail((v) => !v)}
+                  className="w-full rounded-md bg-amber-50 px-3 py-2 text-left text-sm font-bold text-amber-900"
+                >
+                  儲能左側明細（10:00-14:00 充電來源）{openStorageLeftDetail ? '▲' : '▼'}
+                </button>
+                {openStorageLeftDetail ? (
+                  <div className="mt-2 space-y-3 text-xs font-semibold text-slate-700">
+                    <div className="rounded border border-slate-200 bg-slate-50 p-2 text-slate-900">
+                      <div className="flex items-center justify-between">
+                        <span>發電端存入（10:00-14:00）</span>
+                        <span>{storageChargeFromGenerationTotal}</span>
+                      </div>
+                      <div className="mt-1 flex items-center justify-between text-emerald-700">
+                        <span>轉移成功總量（進入儲能）</span>
+                        <span>{storageChargeSuccessTotal}</span>
+                      </div>
+                      <div className="mt-1 flex items-center justify-between text-indigo-700">
+                        <span>儲能餘額存入（近 7 天累加）</span>
+                        <span>{storageChargeFromBalance7dTotal}</span>
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto rounded border border-slate-200">
+                      <table className="min-w-[700px] text-xs">
+                        <thead className="bg-slate-100 text-slate-700">
+                          <tr>
+                            <th className="px-2 py-1 text-left">時間（10:00-14:00）</th>
+                            <th className="px-2 py-1 text-right">發電端存入量</th>
+                            <th className="px-2 py-1 text-right">轉移成功量</th>
+                            <th className="px-2 py-1 text-right">儲能餘額存入量（7天累加）</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {storageChargeQuarterRows.map((row) => (
+                            <tr key={`${row.time}-storage-charge`} className="border-t border-slate-200 bg-white">
+                              <td className="px-2 py-1 font-bold">{row.time}</td>
+                              <td className="px-2 py-1 text-right">{row.fromGeneration}</td>
+                              <td className="px-2 py-1 text-right font-bold text-emerald-700">{row.transferSuccess}</td>
+                              <td className="px-2 py-1 text-right text-indigo-700">{row.fromBalance}</td>
+                            </tr>
+                          ))}
+                          <tr className="border-t border-slate-300 bg-slate-100 font-black text-slate-900">
+                            <td className="px-2 py-1">合計</td>
+                            <td className="px-2 py-1 text-right">{storageChargeFromGenerationTotal}</td>
+                            <td className="px-2 py-1 text-right text-emerald-700">{storageChargeSuccessTotal}</td>
+                            <td className="px-2 py-1 text-right text-indigo-700">{storageChargeFromBalance7dTotal}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="rounded-lg border border-slate-200 bg-white p-3">
+                <button
+                  type="button"
+                  onClick={() => setOpenStorageRightDetail((v) => !v)}
+                  className="w-full rounded-md bg-emerald-50 px-3 py-2 text-left text-sm font-bold text-emerald-900"
+                >
+                  儲能右側明細（流向用電端轉移量／儲能存入量）{openStorageRightDetail ? '▲' : '▼'}
+                </button>
+                {openStorageRightDetail ? (
+                  <div className="mt-2 space-y-3 text-xs font-semibold text-slate-700">
+                    <div className="rounded border border-slate-200 bg-slate-50 p-2 text-slate-900">
+                      <div className="flex items-center justify-between">
+                        <span>流向用電端轉移量</span>
+                        <span>{storageTransferTotals.totalToLoadTransfer}</span>
+                      </div>
+                      <div className="mt-1 flex items-center justify-between text-purple-700">
+                        <span>流向儲能存入量（未用到）</span>
+                        <span>{storageTransferTotals.toStorageDeposit}</span>
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto rounded border border-slate-200">
+                      <table className="min-w-[700px] text-xs">
+                        <thead className="bg-slate-100 text-slate-700">
+                          <tr>
+                            <th className="px-2 py-1 text-left">時段</th>
+                            <th className="px-2 py-1 text-right">總轉移用電量</th>
+                            <th className="px-2 py-1 text-right">L1</th>
+                            <th className="px-2 py-1 text-right">L2</th>
+                            <th className="px-2 py-1 text-right">L3</th>
+                            <th className="px-2 py-1 text-right">儲能存入量（未用到）</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {storageTransferRows.map((row) => (
+                            <tr
+                              key={`${row.slot}-storage-out`}
+                              onClick={() => setSelectedStorageSlot(row.slot)}
+                              className={`cursor-pointer border-t border-slate-200 ${
+                                selectedStorageSlot === row.slot ? 'bg-emerald-50' : 'bg-white hover:bg-slate-50'
+                              }`}
+                            >
+                              <td className="px-2 py-1 font-bold">{row.slot}</td>
+                              <td className="px-2 py-1 text-right font-black text-emerald-700">{row.totalToLoadTransfer}</td>
+                              <td className="px-2 py-1 text-right">{row.l1}</td>
+                              <td className="px-2 py-1 text-right">{row.l2}</td>
+                              <td className="px-2 py-1 text-right">{row.l3}</td>
+                              <td className="px-2 py-1 text-right text-purple-700">{row.toStorageDeposit}</td>
+                            </tr>
+                          ))}
+                          <tr className="border-t border-slate-300 bg-slate-100 font-black text-slate-900">
+                            <td className="px-2 py-1">合計</td>
+                            <td className="px-2 py-1 text-right text-emerald-700">{storageTransferTotals.totalToLoadTransfer}</td>
+                            <td className="px-2 py-1 text-right">{storageTransferTotals.l1}</td>
+                            <td className="px-2 py-1 text-right">{storageTransferTotals.l2}</td>
+                            <td className="px-2 py-1 text-right">{storageTransferTotals.l3}</td>
+                            <td className="px-2 py-1 text-right text-purple-700">{storageTransferTotals.toStorageDeposit}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="rounded border border-slate-200 bg-white p-2">
+                      <p className="pb-2 text-[11px] font-bold text-slate-600">
+                        點選時段 `{selectedStorageSlot}` 的 15 分鐘轉移明細（每 4 小時區間，共 16 筆）
+                      </p>
+                      <div className="max-h-52 overflow-y-auto rounded border border-slate-200">
+                        <table className="w-full text-[11px]">
+                          <thead className="sticky top-0 bg-slate-100 text-slate-700">
+                            <tr>
+                              <th className="px-2 py-1 text-left">時間</th>
+                              <th className="px-2 py-1 text-right">總轉移用電量</th>
+                              <th className="px-2 py-1 text-right">L1</th>
+                              <th className="px-2 py-1 text-right">L2</th>
+                              <th className="px-2 py-1 text-right">L3</th>
+                              <th className="px-2 py-1 text-right">儲能存入量（未用到）</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {storageTransferQuarterRows.map((row) => (
+                              <tr key={`${row.time}-storage-quarter`} className="border-t border-slate-200">
+                                <td className="px-2 py-1">{row.time}</td>
+                                <td className="px-2 py-1 text-right font-bold text-emerald-700">{row.totalToLoadTransfer}</td>
+                                <td className="px-2 py-1 text-right">{row.l1}</td>
+                                <td className="px-2 py-1 text-right">{row.l2}</td>
+                                <td className="px-2 py-1 text-right">{row.l3}</td>
+                                <td className="px-2 py-1 text-right text-purple-700">{row.toStorageDeposit}</td>
                               </tr>
                             ))}
                           </tbody>
