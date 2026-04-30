@@ -34,6 +34,18 @@ export default function SettlementMonthlyPage() {
   const [openLeftDetail, setOpenLeftDetail] = useState(true);
   const [openRightDetail, setOpenRightDetail] = useState(true);
   const [selectedSlot, setSelectedSlot] = useState('00:00');
+  const flowToContractBySlot: Record<string, number> = {
+    '00:00': 110,
+    '04:00': 120,
+    '08:00': 110,
+    '12:00': 90,
+    '16:00': 120,
+    '20:00': 100,
+  };
+  const flowToStorageBySlot: Record<string, number> = {
+    '12:00': 230,
+  };
+  const flowToSurplus = 120;
 
   const palette =
     paletteMode === 'A'
@@ -67,12 +79,12 @@ export default function SettlementMonthlyPage() {
         };
 
   const generationRows: GenerationDetailRow[] = [
-    { slot: '00:00', g1Name: 'G1 太陽能A', g1: 30, g2Name: 'G2 太陽能B', g2: 36, g3Name: 'G3 風力A', g3: 34, g4Name: 'G4 生質能', g4: 40, toContract: 140, toStorage: 0, total: 140 },
-    { slot: '04:00', g1Name: 'G1 太陽能A', g1: 34, g2Name: 'G2 太陽能B', g2: 41, g3Name: 'G3 風力A', g3: 40, g4Name: 'G4 生質能', g4: 45, toContract: 160, toStorage: 0, total: 160 },
-    { slot: '08:00', g1Name: 'G1 太陽能A', g1: 32, g2Name: 'G2 太陽能B', g2: 39, g3Name: 'G3 風力A', g3: 37, g4Name: 'G4 生質能', g4: 42, toContract: 150, toStorage: 0, total: 150 },
-    { slot: '12:00', g1Name: 'G1 太陽能A', g1: 52, g2Name: 'G2 太陽能B', g2: 61, g3Name: 'G3 風力A', g3: 59, g4Name: 'G4 生質能', g4: 68, toContract: 90, toStorage: 150, total: 240 },
-    { slot: '16:00', g1Name: 'G1 太陽能A', g1: 38, g2Name: 'G2 太陽能B', g2: 46, g3Name: 'G3 風力A', g3: 44, g4Name: 'G4 生質能', g4: 52, toContract: 180, toStorage: 0, total: 180 },
-    { slot: '20:00', g1Name: 'G1 太陽能A', g1: 28, g2Name: 'G2 太陽能B', g2: 33, g3Name: 'G3 風力A', g3: 32, g4Name: 'G4 生質能', g4: 37, toContract: 130, toStorage: 0, total: 130 },
+    { slot: '00:00', g1Name: 'G1 太陽能A', g1: 30, g2Name: 'G2 太陽能B', g2: 36, g3Name: 'G3 風力A', g3: 34, g4Name: 'G4 生質能', g4: 40, toContract: flowToContractBySlot['00:00'] ?? 0, toStorage: flowToStorageBySlot['00:00'] ?? 0, total: 140 },
+    { slot: '04:00', g1Name: 'G1 太陽能A', g1: 34, g2Name: 'G2 太陽能B', g2: 41, g3Name: 'G3 風力A', g3: 40, g4Name: 'G4 生質能', g4: 45, toContract: flowToContractBySlot['04:00'] ?? 0, toStorage: flowToStorageBySlot['04:00'] ?? 0, total: 160 },
+    { slot: '08:00', g1Name: 'G1 太陽能A', g1: 32, g2Name: 'G2 太陽能B', g2: 39, g3Name: 'G3 風力A', g3: 37, g4Name: 'G4 生質能', g4: 42, toContract: flowToContractBySlot['08:00'] ?? 0, toStorage: flowToStorageBySlot['08:00'] ?? 0, total: 150 },
+    { slot: '12:00', g1Name: 'G1 太陽能A', g1: 52, g2Name: 'G2 太陽能B', g2: 61, g3Name: 'G3 風力A', g3: 59, g4Name: 'G4 生質能', g4: 68, toContract: flowToContractBySlot['12:00'] ?? 0, toStorage: flowToStorageBySlot['12:00'] ?? 0, total: 240 },
+    { slot: '16:00', g1Name: 'G1 太陽能A', g1: 38, g2Name: 'G2 太陽能B', g2: 46, g3Name: 'G3 風力A', g3: 44, g4Name: 'G4 生質能', g4: 52, toContract: flowToContractBySlot['16:00'] ?? 0, toStorage: flowToStorageBySlot['16:00'] ?? 0, total: 180 },
+    { slot: '20:00', g1Name: 'G1 太陽能A', g1: 28, g2Name: 'G2 太陽能B', g2: 33, g3Name: 'G3 風力A', g3: 32, g4Name: 'G4 生質能', g4: 37, toContract: flowToContractBySlot['20:00'] ?? 0, toStorage: flowToStorageBySlot['20:00'] ?? 0, total: 130 },
   ];
 
   const generationTotals = generationRows.reduce(
@@ -157,9 +169,9 @@ export default function SettlementMonthlyPage() {
     ];
 
     const links = [
-      { source: '發電端', target: '合約數量', value: 650 },
-      { source: '發電端', target: '儲能', value: 230 },
-      { source: '發電端', target: '餘電', value: 120, lineStyle: { color: palette.flowFail } },
+      { source: '發電端', target: '合約數量', value: generationTotals.toContract },
+      { source: '發電端', target: '儲能', value: generationTotals.toStorage },
+      { source: '發電端', target: '餘電', value: flowToSurplus, lineStyle: { color: palette.flowFail } },
       { source: '儲能餘額', target: '儲能', value: 150 },
       { source: '合約數量', target: '用電端', value: 650, lineStyle: { color: palette.flowContract } },
       { source: '合約數量', target: '餘電', value: 120, lineStyle: { color: palette.flowFail } },
@@ -403,7 +415,7 @@ export default function SettlementMonthlyPage() {
                       </div>
                       <div className="mt-1 flex items-center justify-between text-red-600">
                         <span>流向餘電</span>
-                        <span>120</span>
+                        <span>{flowToSurplus}</span>
                       </div>
                     </div>
                   </div>
