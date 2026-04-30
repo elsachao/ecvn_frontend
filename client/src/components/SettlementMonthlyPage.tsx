@@ -20,10 +20,42 @@ type GenerationDetailRow = {
 /** 4.2 月結算：五欄桑基（發電端／儲能餘額 → 合約數量／儲能 → 用電端／轉移量 → 成功匹配／存入／餘電） */
 export default function SettlementMonthlyPage() {
   const [enlarge, setEnlarge] = useState(false);
+  const [paletteMode, setPaletteMode] = useState<'A' | 'B'>('A');
   const [activeNode, setActiveNode] = useState<string | null>('發電端');
   const [openLeftDetail, setOpenLeftDetail] = useState(true);
   const [openRightDetail, setOpenRightDetail] = useState(true);
   const [selectedSlot, setSelectedSlot] = useState('00:00');
+
+  const palette =
+    paletteMode === 'A'
+      ? {
+          generation: '#f59e0b',
+          contract: '#92400e',
+          storage: '#7c3aed',
+          battery: '#0f766e',
+          success: '#059669',
+          surplus: '#ea580c',
+          text: '#0f172a',
+          background: '#f8fafc',
+          flowSuccess: '#22c55e',
+          flowFail: '#ef4444',
+          flowContract: '#f97316',
+          flowStorage: '#a855f7',
+        }
+      : {
+          generation: '#78909C',
+          contract: '#90A4AE',
+          storage: '#9575CD',
+          battery: '#B39DDB',
+          success: '#81C784',
+          surplus: '#BDBDBD',
+          text: '#455A64',
+          background: '#F5F5F5',
+          flowSuccess: '#81C784',
+          flowFail: '#BDBDBD',
+          flowContract: '#90A4AE',
+          flowStorage: '#9575CD',
+        };
 
   const generationRows: GenerationDetailRow[] = [
     { slot: '00:00', g1Name: 'G1 太陽能A', g1: 30, g2Name: 'G2 太陽能B', g2: 36, g3Name: 'G3 風力A', g3: 34, g4Name: 'G4 生質能', g4: 40, toContract: 140, toStorage: 0, total: 140 },
@@ -75,7 +107,7 @@ export default function SettlementMonthlyPage() {
   const option = useMemo<EChartsOption>(() => {
     const edge = enlarge ? 52 : 44;
     const labelCommon = {
-      color: '#0f172a',
+      color: palette.text,
       fontSize: enlarge ? 11 : 9,
       fontWeight: 700,
       lineHeight: 15,
@@ -85,35 +117,35 @@ export default function SettlementMonthlyPage() {
     };
 
     const nodes = [
-      { name: '發電端', depth: 0, itemStyle: { color: '#f59e0b' }, label: { ...labelCommon, position: 'left' as const, distance: 8 } },
-      { name: '儲能餘額', depth: 0, itemStyle: { color: '#0f766e' }, label: { ...labelCommon, position: 'left' as const, distance: 8 } },
-      { name: '合約數量', depth: 1, itemStyle: { color: '#92400e' }, label: { ...labelCommon, position: 'inside' as const } },
-      { name: '儲能', depth: 1, itemStyle: { color: '#7c3aed' }, label: { ...labelCommon, position: 'inside' as const } },
-      { name: '用電端', depth: 2, itemStyle: { color: '#f97316' }, label: { ...labelCommon, position: 'right' as const, distance: 10 } },
-      { name: '用電端轉移量', depth: 2, itemStyle: { color: '#f97316' }, label: { ...labelCommon, position: 'right' as const, distance: 10 } },
-      { name: '成功匹配量', depth: 3, itemStyle: { color: '#059669' }, label: { ...labelCommon, position: 'right' as const, distance: 12 } },
-      { name: '儲能存入量', depth: 3, itemStyle: { color: '#6366f1' }, label: { ...labelCommon, position: 'right' as const, distance: 12 } },
-      { name: '餘電', depth: 3, itemStyle: { color: '#ea580c' }, label: { ...labelCommon, position: 'right' as const, distance: 12 } },
+      { name: '發電端', depth: 0, itemStyle: { color: palette.generation }, label: { ...labelCommon, position: 'left' as const, distance: 8 } },
+      { name: '儲能餘額', depth: 0, itemStyle: { color: palette.battery }, label: { ...labelCommon, position: 'left' as const, distance: 8 } },
+      { name: '合約數量', depth: 1, itemStyle: { color: palette.contract }, label: { ...labelCommon, position: 'inside' as const } },
+      { name: '儲能', depth: 1, itemStyle: { color: palette.storage }, label: { ...labelCommon, position: 'inside' as const } },
+      { name: '用電端', depth: 2, itemStyle: { color: palette.contract }, label: { ...labelCommon, position: 'right' as const, distance: 10 } },
+      { name: '用電端轉移量', depth: 2, itemStyle: { color: palette.contract }, label: { ...labelCommon, position: 'right' as const, distance: 10 } },
+      { name: '成功匹配量', depth: 3, itemStyle: { color: palette.success }, label: { ...labelCommon, position: 'right' as const, distance: 12 } },
+      { name: '儲能存入量', depth: 3, itemStyle: { color: palette.storage }, label: { ...labelCommon, position: 'right' as const, distance: 12 } },
+      { name: '餘電', depth: 3, itemStyle: { color: palette.surplus }, label: { ...labelCommon, position: 'right' as const, distance: 12 } },
     ];
 
     const links = [
       { source: '發電端', target: '合約數量', value: 650 },
       { source: '發電端', target: '儲能', value: 230 },
-      { source: '發電端', target: '餘電', value: 120, lineStyle: { color: '#ef4444' } },
+      { source: '發電端', target: '餘電', value: 120, lineStyle: { color: palette.flowFail } },
       { source: '儲能餘額', target: '儲能', value: 150 },
-      { source: '合約數量', target: '用電端', value: 650, lineStyle: { color: '#f97316' } },
-      { source: '合約數量', target: '餘電', value: 120, lineStyle: { color: '#ef4444' } },
-      { source: '儲能', target: '用電端轉移量', value: 250, lineStyle: { color: '#f97316' } },
-      { source: '儲能', target: '儲能存入量', value: 130, lineStyle: { color: '#a855f7' } },
+      { source: '合約數量', target: '用電端', value: 650, lineStyle: { color: palette.flowContract } },
+      { source: '合約數量', target: '餘電', value: 120, lineStyle: { color: palette.flowFail } },
+      { source: '儲能', target: '用電端轉移量', value: 250, lineStyle: { color: palette.flowContract } },
+      { source: '儲能', target: '儲能存入量', value: 130, lineStyle: { color: palette.flowStorage } },
       {
         source: '用電端',
         target: '成功匹配量',
         value: 620,
-        lineStyle: { color: '#22c55e' },
+        lineStyle: { color: palette.flowSuccess },
       },
-      { source: '用電端', target: '餘電', value: 30, lineStyle: { color: '#ef4444' } },
-      { source: '用電端轉移量', target: '成功匹配量', value: 235, lineStyle: { color: '#22c55e' } },
-      { source: '用電端轉移量', target: '餘電', value: 15, lineStyle: { color: '#ef4444' } },
+      { source: '用電端', target: '餘電', value: 30, lineStyle: { color: palette.flowFail } },
+      { source: '用電端轉移量', target: '成功匹配量', value: 235, lineStyle: { color: palette.flowSuccess } },
+      { source: '用電端轉移量', target: '餘電', value: 15, lineStyle: { color: palette.flowFail } },
     ];
 
     return {
@@ -157,7 +189,7 @@ export default function SettlementMonthlyPage() {
         },
       ],
     };
-  }, [enlarge]);
+  }, [enlarge, palette]);
 
   const chartEvents = {
     click: (params: unknown) => {
@@ -168,7 +200,7 @@ export default function SettlementMonthlyPage() {
 
   return (
     <div className="space-y-6 pb-8 text-slate-800">
-      <section className="rounded-2xl border border-slate-300 bg-white p-5 shadow-sm">
+      <section className="rounded-2xl border border-slate-300 p-5 shadow-sm" style={{ backgroundColor: palette.background, color: palette.text }}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h3 className="text-lg font-bold text-slate-900">4.2 月結算｜能源流動總覽（桑基）</h3>
@@ -183,6 +215,26 @@ export default function SettlementMonthlyPage() {
           >
             {enlarge ? '縮小圖表' : '放大圖表'}
           </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPaletteMode('A')}
+              className={`rounded-full border px-3 py-1 text-xs font-bold ${
+                paletteMode === 'A' ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700'
+              }`}
+            >
+              配色A
+            </button>
+            <button
+              type="button"
+              onClick={() => setPaletteMode('B')}
+              className={`rounded-full border px-3 py-1 text-xs font-bold ${
+                paletteMode === 'B' ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700'
+              }`}
+            >
+              配色B
+            </button>
+          </div>
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center text-[10px] font-black text-slate-600 sm:grid-cols-5 sm:text-xs">
