@@ -33,6 +33,8 @@ export default function SettlementMonthlyPage() {
   const [activeNode, setActiveNode] = useState<string | null>('發電端');
   const [openLeftDetail, setOpenLeftDetail] = useState(true);
   const [openRightDetail, setOpenRightDetail] = useState(true);
+  const [openContractLeftDetail, setOpenContractLeftDetail] = useState(true);
+  const [openContractRightDetail, setOpenContractRightDetail] = useState(true);
   const [selectedSlot, setSelectedSlot] = useState('00:00');
   const flowToContractBySlot: Record<string, number> = {
     '00:00': 110,
@@ -99,6 +101,25 @@ export default function SettlementMonthlyPage() {
       return acc;
     },
     { g1: 0, g2: 0, g3: 0, g4: 0, toContract: 0, toStorage: 0, total: 0 },
+  );
+  const contractMatchRows = [
+    { slot: '00:00', totalMatchedGeneration: 110, l1: 38, l2: 36, l3: 36, unmatched: 18 },
+    { slot: '04:00', totalMatchedGeneration: 120, l1: 40, l2: 40, l3: 40, unmatched: 22 },
+    { slot: '08:00', totalMatchedGeneration: 110, l1: 36, l2: 37, l3: 37, unmatched: 20 },
+    { slot: '12:00', totalMatchedGeneration: 90, l1: 30, l2: 30, l3: 30, unmatched: 16 },
+    { slot: '16:00', totalMatchedGeneration: 120, l1: 41, l2: 39, l3: 40, unmatched: 22 },
+    { slot: '20:00', totalMatchedGeneration: 100, l1: 34, l2: 33, l3: 33, unmatched: 22 },
+  ];
+  const contractMatchTotals = contractMatchRows.reduce(
+    (acc, row) => {
+      acc.totalMatchedGeneration += row.totalMatchedGeneration;
+      acc.l1 += row.l1;
+      acc.l2 += row.l2;
+      acc.l3 += row.l3;
+      acc.unmatched += row.unmatched;
+      return acc;
+    },
+    { totalMatchedGeneration: 0, l1: 0, l2: 0, l3: 0, unmatched: 0 },
   );
 
   const selectedSlotRow = generationRows.find((row) => row.slot === selectedSlot) ?? generationRows[0];
@@ -291,7 +312,7 @@ export default function SettlementMonthlyPage() {
         </div>
 
         <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
-          <p className="text-xs font-bold text-slate-600">可點擊節點開啟明細（目前先支援「發電端」左右展開）。</p>
+          <p className="text-xs font-bold text-slate-600">可點擊節點開啟明細（目前支援「發電端」、「合約數量」與「儲能餘額」）。</p>
           {activeNode === '發電端' ? (
             <div className="mt-3 grid gap-3 md:grid-cols-2">
               <div className="rounded-lg border border-slate-200 bg-white p-3">
@@ -417,6 +438,95 @@ export default function SettlementMonthlyPage() {
                         <span>流向餘電</span>
                         <span>{flowToSurplus}</span>
                       </div>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ) : activeNode === '合約數量' ? (
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              <div className="rounded-lg border border-slate-200 bg-white p-3">
+                <button
+                  type="button"
+                  onClick={() => setOpenContractLeftDetail((v) => !v)}
+                  className="w-full rounded-md bg-amber-50 px-3 py-2 text-left text-sm font-bold text-amber-900"
+                >
+                  合約數量左側明細（來自發電端右側流向）{openContractLeftDetail ? '▲' : '▼'}
+                </button>
+                {openContractLeftDetail ? (
+                  <div className="mt-2 space-y-1 text-xs font-semibold text-slate-700">
+                    {generationRows.map((row) => (
+                      <div key={`${row.slot}-contract-in`} className="rounded bg-slate-50 px-2 py-1">
+                        <div className="flex items-center justify-between">
+                          <span>{row.slot} → 合約數量</span>
+                          <span>{row.toContract}</span>
+                        </div>
+                      </div>
+                    ))}
+                    <div className="border-t border-slate-200 pt-2 text-slate-900">
+                      <div className="flex items-center justify-between">
+                        <span>流入合約數量總量</span>
+                        <span>{generationTotals.toContract}</span>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="rounded-lg border border-slate-200 bg-white p-3">
+                <button
+                  type="button"
+                  onClick={() => setOpenContractRightDetail((v) => !v)}
+                  className="w-full rounded-md bg-emerald-50 px-3 py-2 text-left text-sm font-bold text-emerald-900"
+                >
+                  合約數量右側明細（流向用電端／餘電）{openContractRightDetail ? '▲' : '▼'}
+                </button>
+                {openContractRightDetail ? (
+                  <div className="mt-2 space-y-3 text-xs font-semibold text-slate-700">
+                    <div className="rounded border border-slate-200 bg-slate-50 p-2 text-slate-900">
+                      <div className="flex items-center justify-between">
+                        <span>流入用電端</span>
+                        <span>{contractMatchTotals.totalMatchedGeneration}</span>
+                      </div>
+                      <div className="mt-1 flex items-center justify-between text-red-600">
+                        <span>流入餘電</span>
+                        <span>{contractMatchTotals.unmatched}</span>
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto rounded border border-slate-200">
+                      <table className="min-w-[680px] text-xs">
+                        <thead className="bg-slate-100 text-slate-700">
+                          <tr>
+                            <th className="px-2 py-1 text-left">時段</th>
+                            <th className="px-2 py-1 text-right">總匹配發電量</th>
+                            <th className="px-2 py-1 text-right">L1</th>
+                            <th className="px-2 py-1 text-right">L2</th>
+                            <th className="px-2 py-1 text-right">L3</th>
+                            <th className="px-2 py-1 text-right">餘電（匹配失敗）量</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {contractMatchRows.map((row) => (
+                            <tr key={`${row.slot}-contract-out`} className="border-t border-slate-200 bg-white">
+                              <td className="px-2 py-1 font-bold">{row.slot}</td>
+                              <td className="px-2 py-1 text-right font-black text-emerald-700">{row.totalMatchedGeneration}</td>
+                              <td className="px-2 py-1 text-right">{row.l1}</td>
+                              <td className="px-2 py-1 text-right">{row.l2}</td>
+                              <td className="px-2 py-1 text-right">{row.l3}</td>
+                              <td className="px-2 py-1 text-right text-red-600">{row.unmatched}</td>
+                            </tr>
+                          ))}
+                          <tr className="border-t border-slate-300 bg-slate-100 font-black text-slate-900">
+                            <td className="px-2 py-1">合計</td>
+                            <td className="px-2 py-1 text-right text-emerald-700">{contractMatchTotals.totalMatchedGeneration}</td>
+                            <td className="px-2 py-1 text-right">{contractMatchTotals.l1}</td>
+                            <td className="px-2 py-1 text-right">{contractMatchTotals.l2}</td>
+                            <td className="px-2 py-1 text-right">{contractMatchTotals.l3}</td>
+                            <td className="px-2 py-1 text-right text-red-600">{contractMatchTotals.unmatched}</td>
+                          </tr>
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 ) : null}
