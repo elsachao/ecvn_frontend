@@ -108,10 +108,12 @@ export default function SettlementMonthlyPage() {
       {
         source: '用電端',
         target: '成功匹配量',
-        value: 650,
+        value: 620,
         lineStyle: { color: '#22c55e' },
       },
-      { source: '用電端轉移量', target: '成功匹配量', value: 250, lineStyle: { color: '#22c55e' } },
+      { source: '用電端', target: '餘電', value: 30, lineStyle: { color: '#ef4444' } },
+      { source: '用電端轉移量', target: '成功匹配量', value: 235, lineStyle: { color: '#22c55e' } },
+      { source: '用電端轉移量', target: '餘電', value: 15, lineStyle: { color: '#ef4444' } },
     ];
 
     return {
@@ -171,7 +173,7 @@ export default function SettlementMonthlyPage() {
           <div>
             <h3 className="text-lg font-bold text-slate-900">4.2 月結算｜能源流動總覽（桑基）</h3>
             <p className="mt-2 max-w-3xl text-sm font-semibold text-slate-600">
-              儲能餘額僅流入第二層「儲能」；「餘電」僅由「發電端」直接流入。第三層「用電端」與「用電端轉移量」僅接至最右「成功匹配量」，不連餘電。數字為示範假資料，可改接月結算 API。圖表可左右捲動或拖曳縮放，避免標籤被裁切。
+              儲能餘額僅流入第二層「儲能」；「餘電」除發電端與合約未匹配外，也納入用電端/用電端轉移量的小比例失敗流向。數字為示範假資料，可改接月結算 API。圖表可左右捲動或拖曳縮放，避免標籤被裁切。
             </p>
           </div>
           <button
