@@ -36,6 +36,7 @@ export default function SettlementMonthlyPage() {
   const [openContractLeftDetail, setOpenContractLeftDetail] = useState(true);
   const [openContractRightDetail, setOpenContractRightDetail] = useState(true);
   const [selectedSlot, setSelectedSlot] = useState('00:00');
+  const [selectedContractSlot, setSelectedContractSlot] = useState('00:00');
   const flowToContractBySlot: Record<string, number> = {
     '00:00': 110,
     '04:00': 120,
@@ -144,6 +145,22 @@ export default function SettlementMonthlyPage() {
     const g3 = qG3[idx];
     const g4 = qG4[idx];
     return { time, g1, g2, g3, g4, total: g1 + g2 + g3 + g4 };
+  });
+  const selectedContractRow = contractMatchRows.find((row) => row.slot === selectedContractSlot) ?? contractMatchRows[0];
+  const contractSlotHour = Number.parseInt(selectedContractRow.slot.split(':')[0] ?? '0', 10);
+  const qL1 = buildQuarterSeries(selectedContractRow.l1);
+  const qL2 = buildQuarterSeries(selectedContractRow.l2);
+  const qL3 = buildQuarterSeries(selectedContractRow.l3);
+  const qUnmatched = buildQuarterSeries(selectedContractRow.unmatched);
+  const quarterContractRows = Array.from({ length: 16 }).map((_, idx) => {
+    const hour = contractSlotHour + Math.floor(idx / 4);
+    const minute = (idx % 4) * 15;
+    const time = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+    const l1 = qL1[idx];
+    const l2 = qL2[idx];
+    const l3 = qL3[idx];
+    const unmatched = qUnmatched[idx];
+    return { time, totalMatchedGeneration: l1 + l2 + l3, l1, l2, l3, unmatched };
   });
 
   const storageLedgerRows: StorageLedgerRow[] = [
@@ -508,7 +525,13 @@ export default function SettlementMonthlyPage() {
                         </thead>
                         <tbody>
                           {contractMatchRows.map((row) => (
-                            <tr key={`${row.slot}-contract-out`} className="border-t border-slate-200 bg-white">
+                            <tr
+                              key={`${row.slot}-contract-out`}
+                              onClick={() => setSelectedContractSlot(row.slot)}
+                              className={`cursor-pointer border-t border-slate-200 ${
+                                selectedContractSlot === row.slot ? 'bg-emerald-50' : 'bg-white hover:bg-slate-50'
+                              }`}
+                            >
                               <td className="px-2 py-1 font-bold">{row.slot}</td>
                               <td className="px-2 py-1 text-right font-black text-emerald-700">{row.totalMatchedGeneration}</td>
                               <td className="px-2 py-1 text-right">{row.l1}</td>
@@ -527,6 +550,38 @@ export default function SettlementMonthlyPage() {
                           </tr>
                         </tbody>
                       </table>
+                    </div>
+
+                    <div className="rounded border border-slate-200 bg-white p-2">
+                      <p className="pb-2 text-[11px] font-bold text-slate-600">
+                        點選時段 `{selectedContractSlot}` 的 15 分鐘匹配明細（每 4 小時區間，共 16 筆）
+                      </p>
+                      <div className="max-h-52 overflow-y-auto rounded border border-slate-200">
+                        <table className="w-full text-[11px]">
+                          <thead className="sticky top-0 bg-slate-100 text-slate-700">
+                            <tr>
+                              <th className="px-2 py-1 text-left">時間</th>
+                              <th className="px-2 py-1 text-right">總匹配發電量</th>
+                              <th className="px-2 py-1 text-right">L1</th>
+                              <th className="px-2 py-1 text-right">L2</th>
+                              <th className="px-2 py-1 text-right">L3</th>
+                              <th className="px-2 py-1 text-right">餘電（匹配失敗）量</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {quarterContractRows.map((row) => (
+                              <tr key={`${row.time}-contract-quarter`} className="border-t border-slate-200">
+                                <td className="px-2 py-1">{row.time}</td>
+                                <td className="px-2 py-1 text-right font-bold text-emerald-700">{row.totalMatchedGeneration}</td>
+                                <td className="px-2 py-1 text-right">{row.l1}</td>
+                                <td className="px-2 py-1 text-right">{row.l2}</td>
+                                <td className="px-2 py-1 text-right">{row.l3}</td>
+                                <td className="px-2 py-1 text-right text-red-600">{row.unmatched}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   </div>
                 ) : null}
@@ -576,7 +631,7 @@ export default function SettlementMonthlyPage() {
               </div>
             </div>
           ) : (
-            <p className="mt-3 text-sm font-semibold text-slate-600">目前可查看「發電端」與「儲能餘額」互動明細，請點選對應節點。</p>
+            <p className="mt-3 text-sm font-semibold text-slate-600">目前可查看「發電端」、「合約數量」與「儲能餘額」互動明細，請點選對應節點。</p>
           )}
         </div>
       </section>
