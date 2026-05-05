@@ -13,14 +13,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Slider } from '@/components/ui/slider';
 import type { EChartsOption } from 'echarts';
 import ReactECharts from 'echarts-for-react';
 import { cn } from '@/lib/utils';
-import type { DateRange } from 'react-day-picker';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Swal, { type SweetAlertIcon } from 'sweetalert2';
 
@@ -32,8 +29,6 @@ const LOAD_MAX_KW = 50;
 const BESS_MIN_KW = -50;
 const BESS_MAX_KW = 50;
 const MIDDAY_TRANSFER_REDUCTION_KW = 20;
-const MIDDAY_BESS_EXTRA_CHARGE_KW = 20;
-const EVENING_BESS_EXTRA_DISCHARGE_KW = 20;
 const TRANSFER_GREEN = '#16a34a';
 
 const base = import.meta.env.BASE_URL;
@@ -123,13 +118,6 @@ function isMiddayTransferReductionWindow(index: number): boolean {
 function applyContractTransferStrategy(index: number, baseTransferKw: number): number {
   if (!isMiddayTransferReductionWindow(index)) return baseTransferKw;
   return Math.max(baseTransferKw - MIDDAY_TRANSFER_REDUCTION_KW, 0);
-}
-
-function getStrategicBessDeltaTotal(index: number): number {
-  const h = getHourByIndex(index);
-  if (h >= 11 && h < 13) return MIDDAY_BESS_EXTRA_CHARGE_KW;
-  if (h >= 18 && h < 20) return -EVENING_BESS_EXTRA_DISCHARGE_KW;
-  return 0;
 }
 
 function isDischargeWindow(index: number): boolean {
@@ -256,11 +244,7 @@ const SUMMARY_CARD_STATS = [
 ] as const;
 
 const STORAGE_SCHEDULE_TOOLTIP_TEXT =
-  '儲能只可以在10:00-14:00充電、放電只可以在16:00-20:00之間';
-
-function formatPassbookZhDate(d: Date) {
-  return d.toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' });
-}
+  '儲能只可以在10:45-14:00充電、放電只可以在16:00-20:00之間，且日放電總量=日充電總量。';
 
 function eachDayInclusive(from: Date, to: Date): Date[] {
   const a = new Date(from);
@@ -277,7 +261,7 @@ function eachDayInclusive(from: Date, to: Date): Date[] {
   return out;
 }
 
-/** 帳本內頁右側與下側紙邊厚度（約略對齊 text-lg 量級的立體感） */
+/** 與封面同圓角裁切；翻開後以內陰影模擬紙邊厚度，不向外溢出、不留外框縫 */
 function PassbookWithPageEdge({
   children,
   showEdge = true,
@@ -285,41 +269,8 @@ function PassbookWithPageEdge({
   children: React.ReactNode;
   showEdge?: boolean;
 }) {
-  if (!showEdge) {
-    return <div className="relative">{children}</div>;
-  }
   return (
-    <div className="relative overflow-visible pr-2.5 pb-2.5">
-      {[0, 1, 2].map((i) => (
-        <div
-          key={`edge-r-${i}`}
-          aria-hidden
-          className="pointer-events-none absolute rounded-r-[10px] border border-amber-900/12 bg-gradient-to-r from-[#f3ecdd] via-[#e2d6c4] to-[#cbb89a] shadow-[1px_0_2px_rgba(0,0,0,0.06)]"
-          style={{
-            top: 10 + i * 2.5,
-            bottom: 10 + i * 2.5,
-            right: -2 - i * 3.5,
-            width: 6,
-            opacity: 1 - i * 0.16,
-          }}
-        />
-      ))}
-      {[0, 1, 2].map((i) => (
-        <div
-          key={`edge-b-${i}`}
-          aria-hidden
-          className="pointer-events-none absolute rounded-b-[10px] border border-amber-900/12 bg-gradient-to-b from-[#f3ecdd] via-[#e2d6c4] to-[#cbb89a] shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
-          style={{
-            left: 10 + i * 2.5,
-            right: 10 + i * 2.5,
-            bottom: -2 - i * 3.5,
-            height: 6,
-            opacity: 1 - i * 0.16,
-          }}
-        />
-      ))}
-      <div className="relative z-10">{children}</div>
-    </div>
+    <div className={cn('relative h-full min-h-0', showEdge && 'overflow-hidden rounded-2xl')}>{children}</div>
   );
 }
 
@@ -373,7 +324,8 @@ export default function DeclarationPlanPage() {
   const [storageLedgerOpen, setStorageLedgerOpen] = useState(false);
   const [storageLedgerFlipped, setStorageLedgerFlipped] = useState(false);
   const [storageLedgerHistoryOpen, setStorageLedgerHistoryOpen] = useState(false);
-  const [storageHistoryRange, setStorageHistoryRange] = useState<DateRange | undefined>(undefined);
+  const [historyQueryStart, setHistoryQueryStart] = useState('');
+  const [historyQueryEnd, setHistoryQueryEnd] = useState('');
   const [socEditBuffer, setSocEditBuffer] = useState<number[]>([45, 53, 61]);
   const [resourceExpanded, setResourceExpanded] = useState(false);
   const [agentDetailExpanded, setAgentDetailExpanded] = useState(false);
@@ -395,18 +347,40 @@ export default function DeclarationPlanPage() {
   }, [currentView, declarationPlanSection, declarationPlanNavSeq]);
 
   const summaryRows = useMemo(() => {
-    return INTERVAL_LABELS.map((time, i) => {
+    const baseRows = INTERVAL_LABELS.map((time, i) => {
       const genVal = sumSeriesAt(store, 'gen', i);
       const loadVal = sumSeriesAt(store, 'load', i);
       const contractQty = applyContractTransferStrategy(i, Math.min(genVal, loadVal));
-      const strategicBess = sumSeriesAt(store, 'bess', i) + getStrategicBessDeltaTotal(i);
       return {
         time,
         gen: genVal,
         load: loadVal,
-        bess: Number(strategicBess.toFixed(3)),
+        bess: 0,
         contractQty: Number(contractQty.toFixed(3)),
       };
+    });
+    const chargeCandidates = baseRows.map((row, i) => {
+      const hour = getHourByIndex(i);
+      const isChargeWindowAfter1045 = i >= 43 && hour < 14; // 10:45 後到 14:00 前
+      if (!isChargeWindowAfter1045) return 0;
+      if (row.gen < row.load) return 0;
+      const bySurplus = Math.max(row.gen - row.load, 0) * 0.32;
+      const byContractRule = Math.max(row.gen - row.contractQty, 0) * 0.2;
+      const candidate = Math.min(bySurplus, byContractRule);
+      return Number(Math.max(0, candidate).toFixed(3));
+    });
+    const totalChargeKwh = chargeCandidates.reduce((acc, kw) => acc + kw / 4, 0);
+    const dischargeIndices = baseRows
+      .map((_, i) => i)
+      .filter((i) => isDischargeWindow(i));
+    const dischargeKwPerInterval =
+      dischargeIndices.length > 0 ? Number(((totalChargeKwh * 4) / dischargeIndices.length).toFixed(3)) : 0;
+
+    return baseRows.map((row, i) => {
+      const chargeKw = chargeCandidates[i] ?? 0;
+      const dischargeKw = dischargeIndices.includes(i) ? dischargeKwPerInterval : 0;
+      const bess = Number((chargeKw - dischargeKw).toFixed(3));
+      return { ...row, bess };
     });
   }, [store]);
 
@@ -431,16 +405,16 @@ export default function DeclarationPlanPage() {
   }, [store]);
 
   const bessRows = useMemo(() => {
-    const bessCount = Math.max(store.bess.length, 1);
+    const splitRatios = [0.34, 0.33, 0.33];
     return INTERVAL_LABELS.map((time, i) => {
       const row: Record<string, string | number> = { time };
-      const deltaPerSeries = getStrategicBessDeltaTotal(i) / bessCount;
-      store.bess.forEach((g, j) => {
-        row[`b${j}`] = Number((g.data[i] + deltaPerSeries).toFixed(3));
+      const totalBess = summaryRows[i]?.bess ?? 0;
+      store.bess.forEach((_, j) => {
+        row[`b${j}`] = Number((totalBess * (splitRatios[j] ?? 0)).toFixed(3));
       });
       return row;
     });
-  }, [store]);
+  }, [store, summaryRows]);
 
   /** 3.4：轉供量跟隨再生能源合計，每 15 分鐘不超過負載合計 */
   const contractTransferRows = useMemo(() => {
@@ -494,17 +468,23 @@ export default function DeclarationPlanPage() {
     const dayStart = Number.isNaN(baseDate.getTime()) ? new Date() : baseDate;
     const chargeKwhToday = summaryRows.reduce((acc, row) => acc + Math.max(row.bess / 4, 0), 0);
     const dischargeKwhToday = summaryRows.reduce((acc, row) => acc + Math.max(-(row.bess / 4), 0), 0);
-    const todayNetKwh = chargeKwhToday - dischargeKwhToday;
 
     const rows = Array.from({ length: 7 }, (_, idx) => {
       const dayOffset = 6 - idx;
       const date = new Date(dayStart);
       date.setDate(dayStart.getDate() - dayOffset);
-      const dayFactor = 0.72 + idx * 0.06;
-      const dayNetKwh = Number((todayNetKwh * dayFactor + Math.sin(idx * 1.7) * 3.2).toFixed(3));
+      const dayFactor = 0.74 + idx * 0.05;
+      const chargeKwh = Math.max(0, Number((chargeKwhToday * dayFactor + Math.cos(idx * 1.15) * 1.8).toFixed(3)));
+      const dischargeKwh = Math.max(
+        0,
+        Number((dischargeKwhToday * (0.68 + idx * 0.045) + Math.sin(idx * 1.25) * 1.4).toFixed(3))
+      );
+      const netKwh = Number((chargeKwh - dischargeKwh).toFixed(3));
       return {
         dateLabel: date.toISOString().slice(0, 10),
-        netMwh: Number((dayNetKwh / 1000).toFixed(3)),
+        chargeMwh: Number((chargeKwh / 1000).toFixed(3)),
+        dischargeMwh: Number((dischargeKwh / 1000).toFixed(3)),
+        netMwh: Number((netKwh / 1000).toFixed(3)),
         status: dayOffset === 6 ? '今日過期 EXPIRED' : `剩餘 ${6 - dayOffset} 天`,
         expired: dayOffset === 6,
       };
@@ -519,23 +499,35 @@ export default function DeclarationPlanPage() {
   }, [storageLedgerRows]);
 
   const storageHistoryRows = useMemo(() => {
-    const from = storageHistoryRange?.from;
-    const to = storageHistoryRange?.to;
-    if (!from || !to) return [];
+    if (!historyQueryStart || !historyQueryEnd) return [];
+    let from = new Date(`${historyQueryStart}T00:00:00`);
+    let to = new Date(`${historyQueryEnd}T00:00:00`);
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) return [];
+    if (from.getTime() > to.getTime()) {
+      const swap = from;
+      from = to;
+      to = swap;
+    }
     return eachDayInclusive(from, to).map((d, idx) => {
       const t = d.getTime();
-      const netMwh = Number(
-        ((Math.sin(t / 8e7) * 0.35 + 0.85 + (idx % 7) * 0.03) * 0.42).toFixed(3)
+      const chargeMwh = Number(
+        ((Math.sin(t / 8e7) * 0.32 + 0.95 + (idx % 7) * 0.035) * 0.46).toFixed(3)
       );
+      const dischargeMwh = Number(
+        ((Math.cos(t / 9e7) * 0.27 + 0.78 + (idx % 5) * 0.03) * 0.38).toFixed(3)
+      );
+      const netMwh = Number((chargeMwh - dischargeMwh).toFixed(3));
       const hasExpired = (t / 86400000 + idx) % 13 === 0 && netMwh > 0.06;
       const expiredMwh = hasExpired ? Number((netMwh * 0.2 + 0.015).toFixed(3)) : 0;
       return {
         dateLabel: d.toISOString().slice(0, 10),
+        chargeMwh,
+        dischargeMwh,
         netMwh,
         expiredMwh,
       };
     });
-  }, [storageHistoryRange]);
+  }, [historyQueryStart, historyQueryEnd]);
 
   const historyExpiredRangeMwh = useMemo(
     () => storageHistoryRows.reduce((acc, row) => acc + row.expiredMwh, 0),
@@ -543,13 +535,13 @@ export default function DeclarationPlanPage() {
   );
 
   const bessSocRows = useMemo(() => {
-    const bessCount = Math.max(store.bess.length, 1);
+    const splitRatios = [0.34, 0.33, 0.33];
     const seriesSoc = store.bess.map((series, seriesIdx) => {
       const initialSoc = clampByRange(socInitialValues[seriesIdx] ?? 50, 0, 100);
       const socData: number[] = [];
       let soc = initialSoc;
-      series.data.forEach((kw, idx) => {
-        const adjustedKw = kw + getStrategicBessDeltaTotal(idx) / bessCount;
+      series.data.forEach((_, idx) => {
+        const adjustedKw = (summaryRows[idx]?.bess ?? 0) * (splitRatios[seriesIdx] ?? 0);
         // 15 分鐘轉換為 SOC 變化比例（示意邏輯）
         const delta = (adjustedKw / 12) * 2.2;
         soc = clampByRange(soc + delta, 0, 100);
@@ -565,7 +557,7 @@ export default function DeclarationPlanPage() {
       });
       return row;
     });
-  }, [store.bess, socInitialValues]);
+  }, [store.bess, socInitialValues, summaryRows]);
 
   const baseChartOption = useMemo(
     () => ({
@@ -764,21 +756,21 @@ export default function DeclarationPlanPage() {
 
   const bessResourceTotals = useMemo(
     () =>
-      store.bess.map((series) => {
-        const bessCount = Math.max(store.bess.length, 1);
+      store.bess.map((series, i) => {
+        const ratio = [0.34, 0.33, 0.33][i] ?? 0;
         const charge =
-          series.data.reduce((acc, val, idx) => {
-            const adjusted = val + getStrategicBessDeltaTotal(idx) / bessCount;
+          summaryRows.reduce((acc, row) => {
+            const adjusted = row.bess * ratio;
             return acc + (adjusted > 0 ? adjusted : 0);
           }, 0) / 4;
         const discharge =
-          series.data.reduce((acc, val, idx) => {
-            const adjusted = val + getStrategicBessDeltaTotal(idx) / bessCount;
+          summaryRows.reduce((acc, row) => {
+            const adjusted = row.bess * ratio;
             return acc + (adjusted < 0 ? Math.abs(adjusted) : 0);
           }, 0) / 4;
         return { id: series.id, charge, discharge };
       }),
-    [store.bess]
+    [store.bess, summaryRows]
   );
 
   const openUpload = (title: string) => {
@@ -1135,6 +1127,8 @@ export default function DeclarationPlanPage() {
                     onClick={() => {
                       setStorageLedgerFlipped(false);
                       setStorageLedgerHistoryOpen(false);
+                      setHistoryQueryStart('');
+                      setHistoryQueryEnd('');
                       setStorageLedgerOpen(true);
                     }}
                     className="flex h-20 w-20 shrink-0 cursor-pointer flex-col items-center justify-center rounded-full border border-amber-200 bg-amber-50 text-amber-700 ring-2 ring-amber-300 shadow-[0_0_20px_rgba(245,158,11,0.45)] transition hover:scale-105 hover:border-amber-300 hover:bg-amber-100 focus-visible:outline focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2"
@@ -1576,16 +1570,20 @@ export default function DeclarationPlanPage() {
             onClick={() => {
               setStorageLedgerFlipped(false);
               setStorageLedgerHistoryOpen(false);
+              setHistoryQueryStart('');
+              setHistoryQueryEnd('');
               setStorageLedgerOpen(false);
             }}
           />
-          <div className="relative z-10 w-full max-w-[980px] overflow-visible [perspective:2000px]">
+          <div className="relative z-10 w-full max-w-[min(980px,100%)] overflow-visible [perspective:2000px]">
             <button
               type="button"
               aria-label="關閉帳本"
               onClick={() => {
                 setStorageLedgerFlipped(false);
                 setStorageLedgerHistoryOpen(false);
+                setHistoryQueryStart('');
+                setHistoryQueryEnd('');
                 setStorageLedgerOpen(false);
               }}
               className="absolute -right-12 -top-3 z-30 inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white/95 text-slate-600 shadow-md transition hover:border-slate-300 hover:bg-white hover:text-slate-900"
@@ -1593,14 +1591,24 @@ export default function DeclarationPlanPage() {
               <i className="fas fa-times text-sm" />
             </button>
             <div
-              className={cn(
-                'relative w-full overflow-visible rounded-2xl [transform-style:preserve-3d]',
-                storageLedgerHistoryOpen ? 'min-h-[min(620px,82svh)]' : 'min-h-[min(520px,72svh)]'
-              )}
+              className="relative mx-auto w-full overflow-visible rounded-2xl [transform-style:preserve-3d]"
+              style={{
+                aspectRatio: '1024 / 588',
+                width: 'min(980px, calc(100vw - 2rem), calc(85vh * 1024 / 588))',
+                maxWidth: '100%',
+              }}
             >
-              <div className="absolute inset-0 z-10 overflow-visible p-1">
+              {/* 內頁外框固定與封面四角對齊；內容位置再依翻頁狀態內縮 */}
+              <div className="absolute inset-0 z-10 overflow-hidden rounded-2xl">
                 <PassbookWithPageEdge showEdge={storageLedgerFlipped}>
-                  <div className="flex max-h-[calc(88svh-96px)] min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-[#fffdf5] p-5 shadow-[0_12px_35px_rgba(15,23,42,0.18)]">
+                  <div
+                    className={cn(
+                      'flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-[#e3d5bc] bg-[#fffdf5] p-4 shadow-[0_12px_35px_rgba(15,23,42,0.18)] sm:p-5',
+                      storageLedgerFlipped ? 'pt-[8%] sm:pt-[7%]' : 'pt-3 sm:pt-4',
+                      storageLedgerFlipped &&
+                        'border-[#dccfb5] shadow-[0_12px_35px_rgba(15,23,42,0.16),inset_0_4px_0_rgba(255,255,255,0.65),inset_0_-6px_16px_rgba(70,55,35,0.07),inset_-6px_0_16px_rgba(85,65,40,0.1),inset_0_6px_16px_rgba(85,65,40,0.07)]'
+                    )}
+                  >
                     {storageLedgerHistoryOpen ? (
                       <>
                         <div className="mb-3 shrink-0 space-y-3 border-b border-slate-200 pb-3">
@@ -1612,75 +1620,53 @@ export default function DeclarationPlanPage() {
                             <i className="fas fa-chevron-left" />
                             收回查詢歷史 CLOSE
                           </button>
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <button
-                                type="button"
-                                className="flex w-full items-stretch justify-between gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-left shadow-sm transition hover:border-blue-400 hover:bg-blue-50/50"
-                              >
-                                <div className="min-w-0 flex-1">
-                                  <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                                    查詢起日（入住）
-                                  </p>
-                                  <p className="truncate text-sm font-bold text-slate-900">
-                                    {storageHistoryRange?.from
-                                      ? formatPassbookZhDate(storageHistoryRange.from)
-                                      : '請選擇'}
-                                  </p>
-                                </div>
-                                <div className="flex shrink-0 items-center px-1 text-slate-400">
-                                  <i className="fas fa-arrow-right text-xs" aria-hidden />
-                                </div>
-                                <div className="min-w-0 flex-1 text-right">
-                                  <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                                    查詢迄日（退房）
-                                  </p>
-                                  <p className="truncate text-sm font-bold text-slate-900">
-                                    {storageHistoryRange?.to
-                                      ? formatPassbookZhDate(storageHistoryRange.to)
-                                      : '請選擇'}
-                                  </p>
-                                </div>
-                              </button>
-                            </PopoverTrigger>
-                            <PopoverContent
-                              className="z-[70] w-auto border-slate-300 p-0 shadow-xl"
-                              align="center"
-                              sideOffset={8}
-                            >
-                              <Calendar
-                                mode="range"
-                                selected={storageHistoryRange}
-                                onSelect={setStorageHistoryRange}
-                                numberOfMonths={2}
-                                defaultMonth={
-                                  storageHistoryRange?.from ??
-                                  storageHistoryRange?.to ??
-                                  new Date(`${selectedDate}T12:00:00`)
-                                }
-                                className="rounded-lg"
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <div>
+                              <label className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-600">
+                                查詢起日
+                              </label>
+                              <Input
+                                type="date"
+                                value={historyQueryStart}
+                                onChange={(e) => setHistoryQueryStart(e.target.value)}
+                                className="h-9 border-slate-300 bg-white font-mono text-sm text-slate-900"
                               />
-                            </PopoverContent>
-                          </Popover>
+                            </div>
+                            <div>
+                              <label className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-600">
+                                查詢迄日
+                              </label>
+                              <Input
+                                type="date"
+                                value={historyQueryEnd}
+                                onChange={(e) => setHistoryQueryEnd(e.target.value)}
+                                className="h-9 border-slate-300 bg-white font-mono text-sm text-slate-900"
+                              />
+                            </div>
+                          </div>
                         </div>
                         <div className="min-h-0 flex-1 space-y-2 overflow-auto font-mono text-sm">
-                          {!storageHistoryRange?.from || !storageHistoryRange?.to ? (
+                          {!historyQueryStart || !historyQueryEnd ? (
                             <p className="py-10 text-center text-sm text-slate-600">
-                              請選擇查詢起迄日期（類似訂房入住／退房區間）
+                              請於上方分別選擇查詢起日與查詢迄日
                             </p>
                           ) : (
                             <>
-                              <div className="sticky top-0 z-[1] mb-2 grid grid-cols-3 border-b border-slate-300 bg-[#fffdf5] pb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                              <div className="sticky top-0 z-[1] mb-2 grid grid-cols-5 border-b border-slate-300 bg-[#fffdf5] pb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
                                 <span>時間 (Date)</span>
+                                <span className="text-center">充電量 (MWh)</span>
+                                <span className="text-center">放電量 (MWh)</span>
                                 <span className="text-center">電能累積量 (MWh)</span>
                                 <span className="text-right">狀態 (Status)</span>
                               </div>
                               {storageHistoryRows.map((row) => (
                                 <div
                                   key={row.dateLabel}
-                                  className="grid grid-cols-3 rounded-lg bg-slate-50 px-2 py-2 text-slate-800"
+                                  className="grid grid-cols-5 rounded-lg bg-slate-50 px-2 py-2 text-slate-800"
                                 >
                                   <span>{row.dateLabel}</span>
+                                  <span className="text-center">{row.chargeMwh.toFixed(3)} MWh</span>
+                                  <span className="text-center">{row.dischargeMwh.toFixed(3)} MWh</span>
                                   <span className="text-center">
                                     {row.netMwh >= 0 ? '+' : ''}
                                     {row.netMwh.toFixed(3)} MWh
@@ -1709,22 +1695,26 @@ export default function DeclarationPlanPage() {
                       </>
                     ) : (
                       <>
-                        <div className="mb-3 grid grid-cols-3 border-b border-slate-300 pb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                        <div className="mb-3 shrink-0 grid grid-cols-5 border-b border-slate-300 pb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
                           <span>時間 (Date)</span>
+                          <span className="text-center">充電量 (MWh)</span>
+                          <span className="text-center">放電量 (MWh)</span>
                           <span className="text-center">電能累積 (MWh)</span>
                           <span className="text-right">狀態 (Status)</span>
                         </div>
-                        <div className="max-h-[280px] space-y-2 overflow-auto font-mono text-sm">
+                        <div className="min-h-0 flex-1 space-y-2 overflow-auto font-mono text-sm">
                           {storageLedgerRows.map((row) => (
                             <div
                               key={row.dateLabel}
-                              className={`grid grid-cols-3 rounded-lg px-2 py-2 ${
+                              className={`grid grid-cols-5 rounded-lg px-2 py-2 ${
                                 row.expired
                                   ? 'animate-pulse bg-red-50 text-base font-black text-red-900'
                                   : 'bg-slate-50 text-slate-700'
                               }`}
                             >
                               <span>{row.dateLabel}</span>
+                              <span className="text-center">{row.chargeMwh.toFixed(3)} MWh</span>
+                              <span className="text-center">{row.dischargeMwh.toFixed(3)} MWh</span>
                               <span className="text-center">
                                 {row.netMwh >= 0 ? '+' : ''}
                                 {row.netMwh.toFixed(3)} MWh
@@ -1735,23 +1725,24 @@ export default function DeclarationPlanPage() {
                             </div>
                           ))}
                         </div>
-                        <div className="mt-5 border-t border-dashed border-slate-300 pt-3 text-right">
+                        <div className="mt-5 shrink-0 border-t border-dashed border-slate-300 pt-3 text-right">
                           <p className="text-xs font-black uppercase tracking-widest text-blue-900">
                             累積過期放電量 Total Expired
                           </p>
                           <p className="mt-1 text-lg font-black text-blue-900">{totalExpiredMwh.toFixed(3)} MWh</p>
                         </div>
-                        <p className="mt-4 rounded-lg border border-blue-100 bg-blue-50 p-3 text-xs font-semibold leading-relaxed text-blue-900">
+                        <p className="mt-4 shrink-0 rounded-lg border border-blue-100 bg-blue-50 p-3 text-xs font-semibold leading-relaxed text-blue-900">
                           此帳本記錄近 7 日儲能累積量；超過 7 天即失效，放電採先進先出（FIFO）扣減。
                         </p>
-                        <div className="mt-4 flex justify-center">
+                        <div className="mt-4 flex shrink-0 justify-center">
                           <button
                             type="button"
                             onClick={() => {
                               const end = new Date(`${selectedDate}T12:00:00`);
                               const start = new Date(end);
                               start.setDate(start.getDate() - 13);
-                              setStorageHistoryRange({ from: start, to: end });
+                              setHistoryQueryStart(start.toISOString().slice(0, 10));
+                              setHistoryQueryEnd(end.toISOString().slice(0, 10));
                               setStorageLedgerHistoryOpen(true);
                             }}
                             className="rounded-full border border-slate-700 bg-slate-900 px-5 py-2 text-xs font-black uppercase tracking-widest text-white shadow-md transition hover:bg-slate-800"
@@ -1766,9 +1757,10 @@ export default function DeclarationPlanPage() {
               </div>
 
               <div
-                className={`absolute inset-0 z-20 rounded-2xl [transform-origin:top] [transform-style:preserve-3d] transition-transform duration-1000 ${
-                  storageLedgerFlipped ? '[transform:rotateX(155deg)]' : ''
-                }`}
+                className={cn(
+                  'absolute inset-0 z-20 rounded-2xl [transform-origin:top] [transform-style:preserve-3d] transition-transform duration-1000',
+                  storageLedgerFlipped ? '[transform:rotateX(155deg)]' : '[transform:rotateX(0deg)]'
+                )}
               >
                 <div
                   className="absolute inset-0 rounded-2xl border border-slate-700 bg-cover bg-center [backface-visibility:hidden]"
@@ -1785,13 +1777,15 @@ export default function DeclarationPlanPage() {
                     </button>
                   </div>
                 </div>
-                <div className="absolute inset-0 rounded-2xl border border-slate-200 bg-[#fffdf5] px-8 py-7 text-slate-700 [backface-visibility:hidden] [transform:rotateX(180deg)]">
-                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2">
+                <div className="absolute inset-0 rounded-2xl border border-slate-200 bg-[#fffdf5] px-6 py-6 text-slate-700 [backface-visibility:hidden] [transform:rotateX(180deg)]">
+                  <div className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2">
                     <button
                       type="button"
                       onClick={() => {
                         setStorageLedgerFlipped(false);
                         setStorageLedgerHistoryOpen(false);
+                        setHistoryQueryStart('');
+                        setHistoryQueryEnd('');
                       }}
                       className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white/95 px-4 py-2 text-xs font-black uppercase tracking-widest text-slate-600 shadow-sm transition hover:border-slate-400 hover:text-blue-600"
                     >

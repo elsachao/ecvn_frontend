@@ -55,8 +55,8 @@ const navModules: ModuleItem[] = [
     icon: 'fas fa-file-invoice-dollar',
     label: '4. 結算作業',
     subItems: [
-      { id: 'set-4-1', label: '4.1 預結算' },
-      { id: 'set-4-2', label: '4.2 月結算' },
+      { id: 'set-4-1', label: '4.1 預結算', view: 'settlement-pre' },
+      { id: 'set-4-2', label: '4.2 月結算', view: 'settlement-monthly' },
     ],
   },
   {
@@ -84,7 +84,9 @@ export default function Sidebar() {
   const { isSidebarOpen, currentView, setCurrentView, goToRegistrationOverview, goDeclarationPlanSection, declarationPlanSection } =
     useRegistration();
   // 控制哪些模組是展開的
-  const [openModules, setOpenModules] = useState<string[]>(['dashboard']);
+  const [openModules, setOpenModules] = useState<string[]>(['dashboard', 'settlement']);
+  // 側欄縮小時，控制右側彈出子選單
+  const [collapsedPopoverModule, setCollapsedPopoverModule] = useState<string | null>(null);
 
   const toggleModule = (id: string) => {
     setOpenModules((prev: string[]) =>
@@ -115,7 +117,12 @@ export default function Sidebar() {
       </div>
 
       {/* 導覽選單 */}
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto custom-scrollbar">
+      <nav
+        className="flex-1 space-y-1 overflow-y-auto overflow-x-visible px-3 py-4 custom-scrollbar"
+        onMouseLeave={() => {
+          if (!isSidebarOpen) setCollapsedPopoverModule(null);
+        }}
+      >
         {navModules.map((module, moduleIndex) => {
           const isOpen = openModules.includes(module.id);
           const isLeaf = Boolean(module.leaf);
@@ -153,13 +160,24 @@ export default function Sidebar() {
           return (
             <div
               key={module.id}
-              className={`space-y-1 sidebar-module ${isSidebarOpen ? 'is-visible' : ''}`}
+              className={`relative space-y-1 sidebar-module ${isSidebarOpen ? 'is-visible' : ''}`}
               style={{ animationDelay: `${moduleIndex * 35}ms` }}
+              onMouseEnter={() => {
+                if (!isSidebarOpen && module.subItems.length > 0) {
+                  setCollapsedPopoverModule(module.id);
+                }
+              }}
             >
               {/* 大模組按鈕 */}
               <button
                 type="button"
-                onClick={() => isSidebarOpen && toggleModule(module.id)}
+                onClick={() => {
+                  if (isSidebarOpen) {
+                    toggleModule(module.id);
+                    return;
+                  }
+                  setCollapsedPopoverModule(module.id);
+                }}
                 className={`w-full flex items-center px-3 py-3 rounded-lg transition-colors hover:bg-slate-800 text-slate-300 ${
                   !isSidebarOpen ? 'justify-center' : 'justify-between'
                 }`}
@@ -210,6 +228,49 @@ export default function Sidebar() {
                     </a>
                   ))}
               </div>
+
+              {/* 側欄縮小時的彈出子選單 */}
+              {!isSidebarOpen && collapsedPopoverModule === module.id && module.subItems.length > 0 && (
+                <div
+                  className="pointer-events-auto absolute left-[5.25rem] z-[70] mt-[-3.1rem] w-72 rounded-xl border border-slate-700 bg-slate-900/95 p-2 shadow-2xl backdrop-blur"
+                  onMouseEnter={() => setCollapsedPopoverModule(module.id)}
+                >
+                  <div className="mb-1 px-2 py-1 text-xs font-bold tracking-wide text-slate-300">{module.label}</div>
+                  <div className="space-y-1">
+                    {module.subItems.map((sub) => (
+                      <a
+                        key={`${sub.id}-popover`}
+                        href="#"
+                        onClick={(e: { preventDefault: () => void }) => {
+                          e.preventDefault();
+                          if (sub.view === 'registration') {
+                            goToRegistrationOverview();
+                            setCollapsedPopoverModule(null);
+                            return;
+                          }
+                          if (sub.view === 'declaration-plan' && sub.section) {
+                            goDeclarationPlanSection(sub.section);
+                            setCollapsedPopoverModule(null);
+                            return;
+                          }
+                          if (sub.view) {
+                            setCurrentView(sub.view);
+                          }
+                          setCollapsedPopoverModule(null);
+                        }}
+                        className={`block rounded-md px-3 py-2 text-sm transition-colors ${
+                          sub.view === currentView &&
+                          (sub.view !== 'declaration-plan' || sub.section === declarationPlanSection)
+                            ? 'bg-blue-600/20 text-blue-400 font-bold'
+                            : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                        }`}
+                      >
+                        {sub.label}
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}
